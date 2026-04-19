@@ -28,6 +28,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+#root {
+  width: 360px;
+  height: 520px;
+}
+
 button,
 textarea {
   font: inherit;
@@ -36,6 +41,11 @@ textarea {
 button {
   border: 0;
   cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.62;
 }
 
 svg {

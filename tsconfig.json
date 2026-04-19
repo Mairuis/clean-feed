@@ -10,8 +10,9 @@
     "types": ["chrome", "vitest/globals"],
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
+    "jsx": "react-jsx",
     "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

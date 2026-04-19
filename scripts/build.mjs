@@ -10,8 +10,8 @@ await esbuild.build({
   entryPoints: {
     background: "src/background.ts",
     content: "src/content.ts",
-    popup: "src/popup.ts",
-    options: "src/options.ts"
+    popup: "src/popup.tsx",
+    options: "src/options.tsx"
   },
   bundle: true,
   outdir: "dist",
