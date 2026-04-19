@@ -157,7 +157,10 @@ async function generateConfig(brief: string) {
       "§URL=<url>",
       "§DURATION=<display duration>",
       "§DURATION_SECONDS=<seconds>",
+      "§DURATION_MINUTES_FLOOR=<whole minutes>",
       "§DURATION_LT_60, §DURATION_LT_90, §DURATION_LT_180, §DURATION_LT_300",
+      "For longer videos, use common minute markers such as §DURATION_GTE_5_MIN, §DURATION_GTE_10_MIN, §DURATION_GTE_20_MIN, §DURATION_GTE_30_MIN, §DURATION_GTE_60_MIN.",
+      "For strictly longer than a threshold, use §DURATION_GT_5_MIN, §DURATION_GT_10_MIN, §DURATION_GT_20_MIN, §DURATION_GT_30_MIN, §DURATION_GT_60_MIN.",
       "§TEXT=<title channel duration>",
       "Do not add broad rules that would hide high-quality educational content.",
       "Keep rules to 16 items or fewer. Use plain regex text without leading/trailing slashes."

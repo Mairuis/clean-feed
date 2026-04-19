@@ -67,6 +67,33 @@ describe("applyProgrammaticRules", () => {
     expect(applyProgrammaticRules({ ...baseCandidate, durationSeconds: 60 }, rules)).toBeNull();
   });
 
+  it("exposes greater-than duration markers for regex rules", () => {
+    const rules: CleanFeedRule[] = [
+      {
+        id: "long-video-marker",
+        type: "regex",
+        enabled: true,
+        explanation: "Match videos at least 20 minutes long",
+        pattern: "§DURATION_GTE_20_MIN",
+        source: "ai"
+      },
+      {
+        id: "strict-long-video-marker",
+        type: "regex",
+        enabled: true,
+        explanation: "Match videos longer than 30 minutes",
+        pattern: "§DURATION_GT_30_MIN",
+        source: "ai"
+      }
+    ];
+
+    expect(applyProgrammaticRules({ ...baseCandidate, durationSeconds: 20 * 60 }, rules)?.ruleId).toBe("long-video-marker");
+    expect(applyProgrammaticRules({ ...baseCandidate, durationSeconds: 30 * 60 }, [rules[1]!])).toBeNull();
+    expect(applyProgrammaticRules({ ...baseCandidate, durationSeconds: 31 * 60 }, [rules[1]!])?.ruleId).toBe(
+      "strict-long-video-marker"
+    );
+  });
+
   it("does not throw on invalid regex patterns", () => {
     const rules: CleanFeedRule[] = [
       {
@@ -87,6 +114,12 @@ describe("applyProgrammaticRules", () => {
     expect(text).toContain("§SITE=youtube");
     expect(text).toContain("§TITLE=Deep TypeScript Tutorial");
     expect(text).toContain("§DURATION_SECONDS=59");
+    expect(text).toContain("§DURATION_MINUTES_FLOOR=0");
     expect(text).toContain("§DURATION_LT_60");
+
+    const longText = buildVideoRuleText({ ...baseCandidate, durationSeconds: 30 * 60, durationText: "30:00" });
+    expect(longText).toContain("§DURATION_GTE_20_MIN");
+    expect(longText).toContain("§DURATION_GTE_30_MIN");
+    expect(longText).not.toContain("§DURATION_GT_30_MIN");
   });
 });

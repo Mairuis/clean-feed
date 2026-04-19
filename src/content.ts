@@ -1,6 +1,6 @@
 import { applyProgrammaticRules, createVideoCacheKey, parseDuration } from "./lib/rules";
 import { getSettings } from "./lib/storage";
-import type { CleanFeedSettings, SiteId, VideoCandidate } from "./lib/types";
+import type { AiReviewResult, CleanFeedSettings, SiteId, VideoCandidate } from "./lib/types";
 
 const YOUTUBE_VIDEO_SELECTOR = [
   "ytd-rich-item-renderer",
@@ -30,10 +30,21 @@ type FeedbackQueueItem = {
   candidate: VideoCandidate;
 };
 
+type AnalyzeVideosResponse = {
+  results: AiReviewResult[];
+};
+
 let settings: CleanFeedSettings | null = null;
 let observer: MutationObserver | null = null;
 let scanQueued = false;
 let lastUrl = location.href;
+let aiReviewTimer: number | null = null;
+let aiCooldownUntil = 0;
+let aiCandidateByKey = new Map<string, VideoCandidate>();
+let aiElementsByKey = new Map<string, Set<HTMLElement>>();
+let aiPendingCandidates = new Map<string, VideoCandidate>();
+let aiInFlightKeys = new Set<string>();
+let aiReviewResults = new Map<string, AiReviewResult>();
 let feedbackQueue: FeedbackQueueItem[] = [];
 let feedbackQueuedKeys = new Set<string>();
 let feedbackAttemptedKeys = new Set<string>();
@@ -63,6 +74,7 @@ function listenForSettings() {
         feedbackQueue = [];
         feedbackQueuedKeys.clear();
       }
+      resetAiReviewState();
       resetHiddenElements();
       applyRootClasses();
       scanPage();
@@ -99,6 +111,10 @@ function listenForNavigation() {
 function handleUrlChange() {
   lastUrl = location.href;
   window.setTimeout(() => {
+    aiCandidateByKey = new Map();
+    aiElementsByKey = new Map();
+    aiPendingCandidates = new Map();
+    aiInFlightKeys = new Set();
     resetHiddenElements();
     scanPage();
   }, 0);
@@ -146,6 +162,7 @@ function scanPage() {
   }
 
   const cards = collectCandidates();
+  refreshAiElementIndex(cards);
 
   cards.forEach(({ element, candidate }) => {
     if (settings?.shorts.enabled && isYouTubeShortsElement(element)) {
@@ -159,7 +176,16 @@ function scanPage() {
       return;
     }
 
+    const aiResult = aiReviewResults.get(candidate.key);
+    if (aiResult) {
+      applyAiReviewResult(aiResult);
+      return;
+    }
+
+    queueAiReview(candidate);
   });
+
+  scheduleAiReview();
 }
 
 function collectCandidates(): CardCandidate[] {
@@ -288,6 +314,118 @@ function resetHiddenElements() {
     element.style.removeProperty("display");
     element.removeAttribute("data-cleanfeed-hidden");
     element.removeAttribute("data-cleanfeed-reason");
+  });
+}
+
+function resetAiReviewState() {
+  if (aiReviewTimer !== null) {
+    window.clearTimeout(aiReviewTimer);
+    aiReviewTimer = null;
+  }
+
+  aiCooldownUntil = 0;
+  aiCandidateByKey = new Map();
+  aiElementsByKey = new Map();
+  aiPendingCandidates = new Map();
+  aiInFlightKeys = new Set();
+  aiReviewResults = new Map();
+}
+
+function refreshAiElementIndex(cards: CardCandidate[]) {
+  aiCandidateByKey = new Map();
+  aiElementsByKey = new Map();
+
+  cards.forEach(({ element, candidate }) => {
+    aiCandidateByKey.set(candidate.key, candidate);
+
+    const elements = aiElementsByKey.get(candidate.key) || new Set<HTMLElement>();
+    elements.add(element);
+    aiElementsByKey.set(candidate.key, elements);
+  });
+}
+
+function queueAiReview(candidate: VideoCandidate) {
+  if (!settings?.enabled || !settings.ai.enabled || aiReviewResults.has(candidate.key) || aiInFlightKeys.has(candidate.key)) {
+    return;
+  }
+
+  aiPendingCandidates.set(candidate.key, candidate);
+}
+
+function scheduleAiReview() {
+  if (!settings?.enabled || !settings.ai.enabled || aiPendingCandidates.size === 0 || aiReviewTimer !== null) {
+    return;
+  }
+
+  if (Date.now() < aiCooldownUntil) {
+    return;
+  }
+
+  aiReviewTimer = window.setTimeout(() => {
+    aiReviewTimer = null;
+    void processAiReviewQueue();
+  }, 650);
+}
+
+async function processAiReviewQueue() {
+  if (!settings?.enabled || !settings.ai.enabled || aiPendingCandidates.size === 0 || Date.now() < aiCooldownUntil) {
+    return;
+  }
+
+  const batch = [...aiPendingCandidates.values()].slice(0, 8);
+  batch.forEach((candidate) => {
+    aiPendingCandidates.delete(candidate.key);
+    aiInFlightKeys.add(candidate.key);
+  });
+
+  try {
+    const response = await sendRuntimeMessage<AnalyzeVideosResponse>({
+      type: "cleanfeed:analyze-videos",
+      candidates: batch
+    });
+
+    const resultKeys = new Set(response.results.map((result) => result.key));
+    response.results.forEach((result) => {
+      aiReviewResults.set(result.key, result);
+      applyAiReviewResult(result);
+    });
+
+    batch.forEach((candidate) => {
+      if (!resultKeys.has(candidate.key)) {
+        aiReviewResults.set(candidate.key, {
+          key: candidate.key,
+          verdict: "uncertain",
+          reason: "AI skipped"
+        });
+      }
+    });
+  } catch (error) {
+    aiCooldownUntil = Date.now() + 30_000;
+    console.warn("[Clean Feed] AI review skipped", error);
+  } finally {
+    batch.forEach((candidate) => aiInFlightKeys.delete(candidate.key));
+  }
+
+  if (aiPendingCandidates.size > 0) {
+    scheduleAiReview();
+  }
+}
+
+function applyAiReviewResult(result: AiReviewResult) {
+  if (result.verdict !== "low_quality") {
+    return;
+  }
+
+  const candidate = aiCandidateByKey.get(result.key);
+  const elements = aiElementsByKey.get(result.key);
+  if (!candidate || !elements) {
+    return;
+  }
+
+  elements.forEach((element) => {
+    if (document.contains(element)) {
+      hideElement(element, candidate, "ai", result.reason || "AI low quality");
+    }
   });
 }
 
@@ -499,6 +637,15 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, milliseconds);
   });
+}
+
+async function sendRuntimeMessage<T>(message: Record<string, unknown>): Promise<T> {
+  const response = await chrome.runtime.sendMessage(message);
+  if (!response?.ok) {
+    throw new Error(response?.error || "Clean Feed background request failed");
+  }
+
+  return response.payload as T;
 }
 
 function isYouTubeShortsElement(element: HTMLElement): boolean {

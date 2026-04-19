@@ -1,5 +1,7 @@
 import type { CleanFeedRule, VideoCandidate } from "./types";
 
+const DURATION_MINUTE_THRESHOLDS = [1, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120];
+
 export type RuleMatch = {
   ruleId: string;
   reason: string;
@@ -90,10 +92,12 @@ export function buildVideoRuleText(candidate: VideoCandidate): string {
       : [
           `§DURATION=${durationText}`,
           `§DURATION_SECONDS=${durationSeconds}`,
+          `§DURATION_MINUTES_FLOOR=${Math.floor(durationSeconds / 60)}`,
           durationSeconds < 60 ? "§DURATION_LT_60" : "",
           durationSeconds < 90 ? "§DURATION_LT_90" : "",
           durationSeconds < 180 ? "§DURATION_LT_180" : "",
-          durationSeconds < 300 ? "§DURATION_LT_300" : ""
+          durationSeconds < 300 ? "§DURATION_LT_300" : "",
+          ...buildGreaterThanDurationMarkers(durationSeconds)
         ].filter(Boolean);
 
   return [
@@ -104,6 +108,23 @@ export function buildVideoRuleText(candidate: VideoCandidate): string {
     ...durationMarkers,
     `§TEXT=${[candidate.title, candidate.channel || "", durationText].filter(Boolean).join(" ")}`
   ].join("\n");
+}
+
+function buildGreaterThanDurationMarkers(durationSeconds: number): string[] {
+  return DURATION_MINUTE_THRESHOLDS.flatMap((minutes) => {
+    const thresholdSeconds = minutes * 60;
+    const markers: string[] = [];
+
+    if (durationSeconds >= thresholdSeconds) {
+      markers.push(`§DURATION_GTE_${minutes}_MIN`);
+    }
+
+    if (durationSeconds > thresholdSeconds) {
+      markers.push(`§DURATION_GT_${minutes}_MIN`);
+    }
+
+    return markers;
+  });
 }
 
 export function formatDuration(seconds: number): string {
