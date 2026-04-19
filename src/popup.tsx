@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+import { getOptionalPermissionOrigin } from "./lib/provider";
 import { activeRuleCount } from "./lib/rules";
-import { getAiStatus, getSettings, saveSettings } from "./lib/storage";
-import type { AiStatus, CleanFeedSettings } from "./lib/types";
-import {
-  FeedbackIcon,
-  HomeIcon,
-  LogoIcon,
-  PencilIcon,
-  SettingsIcon,
-  ShieldIcon,
-  SparkIcon,
-  TuneIcon,
-  VideoIcon
-} from "./ui/icons";
+import { getAiStatus, getSecrets, getSettings, getUiState, saveSettings, saveUiState } from "./lib/storage";
+import type { AiStatus, CleanFeedSettings, CleanFeedUiState } from "./lib/types";
+import { AiryPopup, FirstRunFlow } from "./ui/airy";
 
 type PopupView = "home" | "edit" | "plan";
+
+type AiConnectionDraft = {
+  apiBase: string;
+  apiKey: string;
+  model: string;
+};
+
+type RuntimeState = {
+  aiStatus: AiStatus;
+  hasAiKey: boolean;
+  settings: CleanFeedSettings;
+};
 
 type RuntimeResponse<T> = {
   error?: string;
@@ -24,28 +26,51 @@ type RuntimeResponse<T> = {
   payload?: T;
 };
 
-const preferenceChips = ["少点娱乐八卦", "保留深度讲解", "屏蔽游戏解说", "不看新闻"];
-
 function PopupApp() {
   const [settings, setSettings] = useState<CleanFeedSettings | null>(null);
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  const [uiState, setUiState] = useState<CleanFeedUiState | null>(null);
+  const [hasAiKey, setHasAiKey] = useState(false);
   const [view, setView] = useState<PopupView>("home");
-  const [brief, setBrief] = useState("");
-  const [briefDirty, setBriefDirty] = useState(false);
+  const [preference, setPreference] = useState("");
+  const [preferenceDirty, setPreferenceDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("读取设置中...");
 
+  const onboardingActive = uiState ? !uiState.onboardingDone : false;
+
+  const applyRuntimeState = useCallback(
+    (state: RuntimeState) => {
+      setSettings(state.settings);
+      setAiStatus(state.aiStatus);
+      setHasAiKey(state.hasAiKey);
+
+      if (!preferenceDirty) {
+        setPreference(state.settings.ai.userBrief);
+      }
+    },
+    [preferenceDirty]
+  );
+
   const loadState = useCallback(async () => {
-    const [nextSettings, nextAiStatus] = await Promise.all([getSettings(), getAiStatus()]);
+    const [nextSettings, nextAiStatus, nextUiState, secrets] = await Promise.all([
+      getSettings(),
+      getAiStatus(),
+      getUiState(),
+      getSecrets()
+    ]);
+
     setSettings(nextSettings);
     setAiStatus(nextAiStatus);
+    setUiState(nextUiState);
+    setHasAiKey(Boolean(secrets.aiApiKey));
 
-    if (!briefDirty) {
-      setBrief(nextSettings.ai.userBrief);
+    if (!preferenceDirty) {
+      setPreference(nextSettings.ai.userBrief);
     }
 
     setStatus(nextSettings.enabled ? "净化中" : "已暂停");
-  }, [briefDirty]);
+  }, [preferenceDirty]);
 
   useEffect(() => {
     void loadState();
@@ -57,6 +82,11 @@ function PopupApp() {
     chrome.storage.onChanged.addListener(handleStorageChange);
     return () => chrome.storage.onChanged.removeListener(handleStorageChange);
   }, [loadState]);
+
+  useEffect(() => {
+    document.body.classList.toggle("cf-onboarding", onboardingActive);
+    return () => document.body.classList.remove("cf-onboarding");
+  }, [onboardingActive]);
 
   const ruleCount = useMemo(() => activeRuleCount(settings?.rules || []), [settings]);
 
@@ -74,276 +104,167 @@ function PopupApp() {
     [settings]
   );
 
-  const toggleEnabled = async (enabled: boolean) => {
-    await updateSettings((current) => ({ ...current, enabled }), enabled ? "净化中" : "已暂停");
-  };
+  const saveAiDraft = useCallback(
+    async (draft: AiConnectionDraft) => {
+      const current = await getSettings();
+      const nextAi: CleanFeedSettings["ai"] = {
+        ...current.ai,
+        enabled: true,
+        apiBase: draft.apiBase.trim() || current.ai.apiBase,
+        model: draft.model.trim() || current.ai.model,
+        userBrief: preference.trim() || current.ai.userBrief
+      };
+      const request: Record<string, unknown> = {
+        type: "cleanfeed:save-ai-config",
+        ai: nextAi
+      };
 
-  const toggleShorts = async (enabled: boolean) => {
-    await updateSettings((current) => ({ ...current, shorts: { enabled } }));
-  };
-
-  const toggleFeedback = async (enabled: boolean) => {
-    await updateSettings((current) => ({
-      ...current,
-      feedback: {
-        ...current.feedback,
-        enabled
+      if (draft.apiKey.trim()) {
+        request.apiKey = draft.apiKey.trim();
       }
-    }));
+
+      await requestApiBasePermission(nextAi.apiBase);
+      const state = await sendRuntimeMessage<RuntimeState>(request);
+      applyRuntimeState(state);
+      setStatus("AI 连接配置已保存");
+    },
+    [applyRuntimeState, preference]
+  );
+
+  const testAiConnection = useCallback(
+    async (draft: AiConnectionDraft) => {
+      await saveAiDraft(draft);
+      const state = await sendRuntimeMessage<RuntimeState>({ type: "cleanfeed:test-ai" });
+      applyRuntimeState(state);
+      setStatus(state.aiStatus.message);
+    },
+    [applyRuntimeState, saveAiDraft]
+  );
+
+  const generateConfig = useCallback(
+    async (briefOverride?: string) => {
+      const safeBrief = (briefOverride ?? preference).trim();
+      if (!safeBrief) {
+        setStatus("先写一句偏好");
+        return;
+      }
+
+      setBusy(true);
+      setStatus("正在生成净化方案");
+
+      try {
+        const state = await sendRuntimeMessage<RuntimeState>({
+          type: "cleanfeed:generate-config",
+          brief: safeBrief
+        });
+        applyRuntimeState(state);
+        setPreferenceDirty(false);
+        setView("plan");
+        setStatus(state.aiStatus.message);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [applyRuntimeState, preference]
+  );
+
+  const completeOnboarding = async () => {
+    const nextUiState = { onboardingDone: true };
+    await saveUiState(nextUiState);
+    setUiState(nextUiState);
+    setView("home");
+    await loadState();
   };
 
-  const openOptions = () => {
+  const skipOnboarding = async () => {
+    await completeOnboarding();
     chrome.runtime.openOptionsPage();
   };
 
-  const generatePlan = async () => {
-    const safeBrief = brief.trim();
-    if (!safeBrief) {
-      setStatus("先写一句偏好");
-      return;
-    }
-
-    setBusy(true);
-    setStatus("正在生成净化方案");
-
-    try {
-      await sendRuntimeMessage({ type: "cleanfeed:generate-config", brief: safeBrief });
-      setBriefDirty(false);
-      setView("plan");
-      await loadState();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!settings) {
+  if (!settings || !aiStatus || !uiState) {
     return (
-      <main className="popup-shell noise" aria-label="Clean Feed">
-        <div className="dawn-bg" aria-hidden="true" />
-        <section className="popup-content">
-          <header className="topbar">
-            <div className="brand-mark" aria-hidden="true">
-              <LogoIcon />
-            </div>
-            <div className="brand-name">Clean Feed</div>
-          </header>
-          <p className="status-line" role="status">
-            {status}
-          </p>
-        </section>
-      </main>
+      <div className="popup-root noise">
+        <div className="dawn-bg" />
+        <p className="popup-status">{status}</p>
+      </div>
+    );
+  }
+
+  if (onboardingActive) {
+    return (
+      <FirstRunFlow
+        hasAiKey={hasAiKey}
+        initialApiBase={settings.ai.apiBase}
+        initialModel={settings.ai.model}
+        initialPreference={settings.ai.userBrief}
+        onDone={() => void completeOnboarding()}
+        onGenerate={(nextPreference) => generateConfig(nextPreference)}
+        onSkip={() => void skipOnboarding()}
+        onTestConnection={testAiConnection}
+      />
     );
   }
 
   return (
-    <main className="popup-shell noise" aria-label="Clean Feed">
-      <div className="dawn-bg" aria-hidden="true" />
-      <section className="popup-content">
-        <header className="topbar">
-          <div className="brand-mark" aria-hidden="true">
-            <LogoIcon />
-          </div>
-          <div className="brand-name">Clean Feed</div>
-
-          <nav className="tabbar" aria-label="视图">
-            <TabButton active={view === "home"} label="概览" onClick={() => setView("home")}>
-              <HomeIcon />
-            </TabButton>
-            <TabButton active={view === "edit"} label="编辑偏好" onClick={() => setView("edit")}>
-              <PencilIcon />
-            </TabButton>
-            <TabButton active={view === "plan"} label="当前方案" onClick={() => setView("plan")}>
-              <ShieldIcon />
-            </TabButton>
-          </nav>
-
-          <button className="icon-btn" type="button" aria-label="高级设置" title="高级设置" onClick={openOptions}>
-            <SettingsIcon />
-          </button>
-
-          <label className="switch" title="启用净化">
-            <input
-              checked={settings.enabled}
-              type="checkbox"
-              aria-label="启用净化"
-              onChange={(event) => void toggleEnabled(event.currentTarget.checked)}
-            />
-            <span />
-          </label>
-        </header>
-
-        {view === "home" ? (
-          <section className="view is-active">
-            <div className="glass hero-card">
-              <div className="hero-line">
-                <strong>{ruleCount}</strong>
-                <span>条正则规则</span>
-                <span className="llm-pill">
-                  <i />
-                  {formatAiState(settings.ai.enabled, aiStatus?.state || "idle")}
-                </span>
-              </div>
-              <div className="breakdown" aria-hidden="true">
-                <span style={{ width: "55%" }} />
-                <span style={{ width: "30%" }} />
-                <span style={{ width: "15%" }} />
-              </div>
-              <div className="legend">
-                <span>● Regex</span>
-                <span>● Feedback</span>
-                <span>● Shorts</span>
-              </div>
-            </div>
-
-            <div className="toggle-stack">
-              <ToggleRow
-                checked={settings.shorts.enabled}
-                icon={<VideoIcon />}
-                label="屏蔽短视频"
-                onChange={toggleShorts}
-              />
-              <ToggleRow
-                checked={settings.feedback.enabled}
-                icon={<FeedbackIcon />}
-                label="平台反馈"
-                onChange={toggleFeedback}
-              />
-            </div>
-
-            <div className="bottom-actions">
-              <button className="btn btn-primary" type="button" onClick={() => setView("edit")}>
-                <SparkIcon />
-                改写偏好
-              </button>
-              <button className="icon-btn" type="button" aria-label="当前方案" title="当前方案" onClick={() => setView("plan")}>
-                <ShieldIcon />
-              </button>
-            </div>
-          </section>
-        ) : null}
-
-        {view === "edit" ? (
-          <section className="view is-active">
-            <div className="view-head">
-              <span>你想过滤什么</span>
-              <small>{brief.length} / 300</small>
-            </div>
-            <textarea
-              className="textarea"
-              rows={9}
-              maxLength={300}
-              placeholder="一句话就好..."
-              value={brief}
-              onChange={(event) => {
-                setBrief(event.currentTarget.value);
-                setBriefDirty(true);
-              }}
-            />
-            <div className="chips" aria-label="快速偏好">
-              {preferenceChips.map((chip) => (
-                <button
-                  key={chip}
-                  type="button"
-                  onClick={() => {
-                    setBrief((current) => [current.trim(), chip].filter(Boolean).join("\n"));
-                    setBriefDirty(true);
-                  }}
-                >
-                  + {chip}
-                </button>
-              ))}
-            </div>
-            <button className="btn btn-primary full" type="button" disabled={busy} onClick={() => void generatePlan()}>
-              <SparkIcon />
-              {busy ? "生成中" : "生成净化方案"}
-            </button>
-          </section>
-        ) : null}
-
-        {view === "plan" ? (
-          <section className="view is-active">
-            <div className="view-head">
-              <span>当前方案</span>
-              <small>{ruleCount} 条规则</small>
-            </div>
-            <div className="plan-list scroll">
-              {settings.rules.length > 0 ? (
-                settings.rules.map((rule) => (
-                  <div className="plan-row" key={rule.id}>
-                    <span className="plan-icon">R</span>
-                    <span className="plan-text">{rule.explanation}</span>
-                    <code>{rule.pattern}</code>
-                  </div>
-                ))
-              ) : (
-                <div className="plan-row">还没有规则</div>
-              )}
-            </div>
-            <button className="btn btn-ghost full" type="button" onClick={openOptions}>
-              <TuneIcon />
-              打开高级设置
-            </button>
-          </section>
-        ) : null}
-
-        <p className="status-line" role="status">
-          {status}
-        </p>
-      </section>
-    </main>
+    <AiryPopup
+      aiState={aiStatus.state}
+      autoFeedback={settings.feedback.enabled}
+      busy={busy}
+      enabled={settings.enabled}
+      preference={preference}
+      ruleCount={ruleCount}
+      rules={settings.rules}
+      shortsBlock={settings.shorts.enabled}
+      status={status}
+      view={view}
+      onGenerate={() =>
+        void generateConfig().catch((error: unknown) => {
+          setStatus(error instanceof Error ? error.message : String(error));
+        })
+      }
+      onOpenOptions={() => chrome.runtime.openOptionsPage()}
+      onPreferenceChange={(nextPreference) => {
+        setPreference(nextPreference);
+        setPreferenceDirty(true);
+      }}
+      onToggleEnabled={(enabled) => void updateSettings((current) => ({ ...current, enabled }), enabled ? "净化中" : "已暂停")}
+      onToggleFeedback={(enabled) =>
+        void updateSettings((current) => ({
+          ...current,
+          feedback: {
+            ...current.feedback,
+            enabled
+          }
+        }))
+      }
+      onToggleShorts={(enabled) => void updateSettings((current) => ({ ...current, shorts: { enabled } }))}
+      onViewChange={setView}
+    />
   );
 }
 
-function TabButton({
-  active,
-  children,
-  label,
-  onClick
-}: {
-  active: boolean;
-  children: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={`tab${active ? " is-active" : ""}`}
-      type="button"
-      aria-label={label}
-      aria-pressed={active}
-      title={label}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
+async function requestApiBasePermission(base: string) {
+  const origin = getOptionalPermissionOrigin(base);
 
-function ToggleRow({
-  checked,
-  icon,
-  label,
-  onChange
-}: {
-  checked: boolean;
-  icon: ReactNode;
-  label: string;
-  onChange: (checked: boolean) => Promise<void>;
-}) {
-  return (
-    <label className={`toggle-row${checked ? " is-on" : ""}`}>
-      {icon}
-      <span>{label}</span>
-      <input
-        checked={checked}
-        type="checkbox"
-        aria-label={label}
-        onChange={(event) => void onChange(event.currentTarget.checked)}
-      />
-    </label>
-  );
+  if (!chrome.permissions?.request) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    chrome.permissions.request({ origins: [origin] }, (granted) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+
+      if (!granted) {
+        reject(new Error("需要授权 API Base 访问权限后才能调用 AI"));
+        return;
+      }
+
+      resolve();
+    });
+  });
 }
 
 async function sendRuntimeMessage<T = unknown>(message: Record<string, unknown>): Promise<T> {
@@ -354,23 +275,6 @@ async function sendRuntimeMessage<T = unknown>(message: Record<string, unknown>)
   }
 
   return response.payload as T;
-}
-
-function formatAiState(isEnabled: boolean, state: AiStatus["state"]): string {
-  if (!isEnabled) {
-    return "OFF";
-  }
-
-  switch (state) {
-    case "ready":
-      return "LLM powered";
-    case "working":
-      return "RUN";
-    case "error":
-      return "ERR";
-    default:
-      return "ON";
-  }
 }
 
 const rootElement = document.getElementById("root");

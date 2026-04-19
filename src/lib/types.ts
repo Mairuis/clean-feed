@@ -47,6 +47,10 @@ export type CleanFeedSecrets = {
   aiApiKey?: string;
 };
 
+export type CleanFeedUiState = {
+  onboardingDone: boolean;
+};
+
 export type AiStatus = {
   state: "idle" | "ready" | "working" | "error";
   message: string;

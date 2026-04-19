@@ -1,23 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { getOptionalPermissionOrigin } from "./lib/provider";
 import { activeRuleCount } from "./lib/rules";
-import { getAiStatus, getSecrets, getSettings, saveSettings } from "./lib/storage";
-import type { AiStatus, CleanFeedSettings } from "./lib/types";
-import {
-  DownloadIcon,
-  FeedbackIcon,
-  GlobeIcon,
-  LogoIcon,
-  RefreshIcon,
-  ShieldIcon,
-  SlidersIcon,
-  SparkIcon,
-  VideoIcon
-} from "./ui/icons";
+import { getAiStatus, getSecrets, getSettings, getUiState, saveSettings, saveUiState } from "./lib/storage";
+import type { AiStatus, CleanFeedSettings, CleanFeedUiState } from "./lib/types";
+import { AirySettings, FirstRunFlow } from "./ui/airy";
 
-type SectionId = "ai" | "review" | "rules" | "scope" | "history" | "export";
+type AiConnectionDraft = {
+  apiBase: string;
+  apiKey: string;
+  model: string;
+};
 
 type RuntimeState = {
   aiStatus: AiStatus;
@@ -31,71 +24,50 @@ type RuntimeResponse<T> = {
   payload?: T;
 };
 
-type AiFormState = {
-  apiBase: string;
-  apiKey: string;
-  model: string;
-};
-
-const initialAiForm: AiFormState = {
-  apiBase: "",
-  apiKey: "",
-  model: ""
-};
-
 function OptionsApp() {
-  const [section, setSection] = useState<SectionId>("ai");
   const [settings, setSettings] = useState<CleanFeedSettings | null>(null);
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  const [uiState, setUiState] = useState<CleanFeedUiState | null>(null);
   const [hasAiKey, setHasAiKey] = useState(false);
-  const [aiForm, setAiForm] = useState<AiFormState>(initialAiForm);
-  const [brief, setBrief] = useState("");
-  const [briefDirty, setBriefDirty] = useState(false);
-  const [connectionOpen, setConnectionOpen] = useState(false);
+  const [preference, setPreference] = useState("");
+  const [preferenceDirty, setPreferenceDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("读取设置中...");
 
+  const onboardingActive = uiState ? !uiState.onboardingDone : false;
+
   const applyRuntimeState = useCallback(
-    (state: RuntimeState, resetForm = true) => {
+    (state: RuntimeState) => {
       setSettings(state.settings);
       setAiStatus(state.aiStatus);
       setHasAiKey(state.hasAiKey);
 
-      if (!briefDirty) {
-        setBrief(state.settings.ai.userBrief);
-      }
-
-      if (resetForm) {
-        setAiForm({
-          apiBase: state.settings.ai.apiBase,
-          apiKey: "",
-          model: state.settings.ai.model
-        });
+      if (!preferenceDirty) {
+        setPreference(state.settings.ai.userBrief);
       }
     },
-    [briefDirty]
+    [preferenceDirty]
   );
 
   const loadState = useCallback(async () => {
-    const [nextSettings, secrets, nextAiStatus] = await Promise.all([getSettings(), getSecrets(), getAiStatus()]);
+    const [nextSettings, nextAiStatus, nextUiState, secrets] = await Promise.all([
+      getSettings(),
+      getAiStatus(),
+      getUiState(),
+      getSecrets()
+    ]);
+
     setSettings(nextSettings);
     setAiStatus(nextAiStatus);
+    setUiState(nextUiState);
     setHasAiKey(Boolean(secrets.aiApiKey));
 
-    if (!briefDirty) {
-      setBrief(nextSettings.ai.userBrief);
-    }
-
-    if (!connectionOpen) {
-      setAiForm({
-        apiBase: nextSettings.ai.apiBase,
-        apiKey: "",
-        model: nextSettings.ai.model
-      });
+    if (!preferenceDirty) {
+      setPreference(nextSettings.ai.userBrief);
     }
 
     setStatus(nextSettings.ai.enabled ? nextAiStatus.message : "AI 未连接");
-  }, [briefDirty, connectionOpen]);
+  }, [preferenceDirty]);
 
   useEffect(() => {
     void loadState();
@@ -110,428 +82,161 @@ function OptionsApp() {
 
   const ruleCount = useMemo(() => activeRuleCount(settings?.rules || []), [settings]);
 
-  const updateSettings = useCallback(
-    async (createNext: (current: CleanFeedSettings) => CleanFeedSettings) => {
-      if (!settings) {
-        return;
+  const saveAiDraft = useCallback(
+    async (draft: AiConnectionDraft) => {
+      const current = await getSettings();
+      const nextAi: CleanFeedSettings["ai"] = {
+        ...current.ai,
+        enabled: true,
+        apiBase: draft.apiBase.trim() || current.ai.apiBase,
+        model: draft.model.trim() || current.ai.model,
+        userBrief: preference.trim() || current.ai.userBrief
+      };
+      const request: Record<string, unknown> = {
+        type: "cleanfeed:save-ai-config",
+        ai: nextAi
+      };
+
+      if (draft.apiKey.trim()) {
+        request.apiKey = draft.apiKey.trim();
       }
 
-      const nextSettings = createNext(settings);
-      setSettings(nextSettings);
-      await saveSettings(nextSettings);
-      setStatus(nextSettings.enabled ? "设置已更新" : "Clean Feed 已暂停");
+      await requestApiBasePermission(nextAi.apiBase);
+      const state = await sendRuntimeMessage<RuntimeState>(request);
+      applyRuntimeState(state);
+      setStatus("AI 连接配置已保存");
     },
-    [settings]
+    [applyRuntimeState, preference]
   );
 
-  const saveAiConfigFromForm = async ({ closeAfterSave = true, silent = false } = {}) => {
-    if (!settings) {
-      return null;
-    }
-
-    const nextAi: CleanFeedSettings["ai"] = {
-      ...settings.ai,
-      enabled: true,
-      apiBase: aiForm.apiBase.trim() || settings.ai.apiBase,
-      model: aiForm.model.trim() || settings.ai.model,
-      userBrief: brief.trim() || settings.ai.userBrief
-    };
-    const nextApiKey = aiForm.apiKey.trim();
-
-    await requestApiBasePermission(nextAi.apiBase);
-
-    const request: Record<string, unknown> = {
-      type: "cleanfeed:save-ai-config",
-      ai: nextAi
-    };
-    if (nextApiKey) {
-      request.apiKey = nextApiKey;
-    }
-
-    const state = await sendRuntimeMessage<RuntimeState>(request);
-    applyRuntimeState(state);
-
-    if (closeAfterSave) {
-      setConnectionOpen(false);
-    }
-
-    if (!silent) {
-      setStatus("AI 连接配置已保存");
-    }
-
-    return state;
-  };
-
-  const testAiConnection = async () => {
-    setBusy(true);
-    setStatus("正在测试 AI 连接");
-
-    try {
-      await saveAiConfigFromForm({ closeAfterSave: false, silent: true });
+  const testAiConnection = useCallback(
+    async (draft: AiConnectionDraft) => {
+      await saveAiDraft(draft);
       const state = await sendRuntimeMessage<RuntimeState>({ type: "cleanfeed:test-ai" });
       applyRuntimeState(state);
       setStatus(state.aiStatus.message);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
+    },
+    [applyRuntimeState, saveAiDraft]
+  );
+
+  const generateConfigStrict = useCallback(
+    async (briefOverride?: string) => {
+      const safeBrief = (briefOverride ?? preference).trim();
+      if (!safeBrief) {
+        throw new Error("先写一句偏好");
+      }
+
+      setBusy(true);
+      setStatus("正在生成正则规则");
+
+      try {
+        const state = await sendRuntimeMessage<RuntimeState>({
+          type: "cleanfeed:generate-config",
+          brief: safeBrief
+        });
+        applyRuntimeState(state);
+        setPreferenceDirty(false);
+        setStatus(state.aiStatus.message);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [applyRuntimeState, preference]
+  );
 
   const generateConfig = async () => {
-    const safeBrief = brief.trim();
-    if (!safeBrief) {
-      setStatus("先写一句偏好");
-      return;
-    }
-
-    setBusy(true);
-    setStatus("正在生成正则规则");
-
     try {
-      const state = await sendRuntimeMessage<RuntimeState>({
-        type: "cleanfeed:generate-config",
-        brief: safeBrief
-      });
-      applyRuntimeState(state);
-      setBriefDirty(false);
-      setSection("rules");
-      setStatus(state.aiStatus.message);
+      await generateConfigStrict();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
     }
   };
 
-  if (!settings) {
+  const completeOnboarding = async () => {
+    const nextUiState = { onboardingDone: true };
+    await saveUiState(nextUiState);
+    setUiState(nextUiState);
+    await loadState();
+  };
+
+  const resetOnboarding = async () => {
+    const nextUiState = { onboardingDone: false };
+    await saveUiState(nextUiState);
+    setUiState(nextUiState);
+  };
+
+  const toggleShorts = async (enabled: boolean) => {
+    const current = await getSettings();
+    const nextSettings = {
+      ...current,
+      shorts: { enabled }
+    };
+    await saveSettings(nextSettings);
+    setSettings(nextSettings);
+    setStatus("设置已更新");
+  };
+
+  const toggleFeedback = async (enabled: boolean) => {
+    const current = await getSettings();
+    const nextSettings = {
+      ...current,
+      feedback: {
+        ...current.feedback,
+        enabled
+      }
+    };
+    await saveSettings(nextSettings);
+    setSettings(nextSettings);
+    setStatus("设置已更新");
+  };
+
+  if (!settings || !aiStatus || !uiState) {
     return (
-      <main className="settings-shell noise" aria-label="Clean Feed 高级设置">
-        <div className="dawn-bg" aria-hidden="true" />
-        <section className="settings-detail scroll">
-          <p className="status-line" role="status">
-            {status}
-          </p>
-        </section>
-      </main>
+      <div className="settings-root noise">
+        <div className="dawn-bg" />
+        <p className="settings-status">{status}</p>
+      </div>
+    );
+  }
+
+  if (onboardingActive) {
+    return (
+      <div className="first-run-page noise">
+        <div className="dawn-bg" />
+        <FirstRunFlow
+          hasAiKey={hasAiKey}
+          initialApiBase={settings.ai.apiBase}
+          initialModel={settings.ai.model}
+          initialPreference={settings.ai.userBrief}
+          onDone={() => void completeOnboarding()}
+          onGenerate={generateConfigStrict}
+          onSkip={() => void completeOnboarding()}
+          onTestConnection={testAiConnection}
+        />
+      </div>
     );
   }
 
   return (
-    <main className="settings-shell noise" aria-label="Clean Feed 高级设置">
-      <div className="dawn-bg" aria-hidden="true" />
-      <aside className="settings-nav">
-        <div className="nav-brand">
-          <div className="brand-mark" aria-hidden="true">
-            <LogoIcon />
-          </div>
-          <div>
-            <strong>Clean Feed</strong>
-            <span>高级设置</span>
-          </div>
-        </div>
-
-        <span className="nav-label">AI</span>
-        <NavItem
-          active={section === "ai"}
-          count={undefined}
-          icon={<SparkIcon />}
-          label="模型连接"
-          onClick={() => setSection("ai")}
-        />
-        <NavItem
-          active={section === "review"}
-          count={undefined}
-          icon={<ShieldIcon />}
-          label="生成策略"
-          onClick={() => setSection("review")}
-        />
-
-        <span className="nav-label">规则</span>
-        <NavItem
-          active={section === "rules"}
-          count={ruleCount}
-          icon={<SlidersIcon />}
-          label="规则详情"
-          onClick={() => setSection("rules")}
-        />
-        <NavItem
-          active={section === "scope"}
-          count={undefined}
-          icon={<GlobeIcon />}
-          label="开关"
-          onClick={() => setSection("scope")}
-        />
-
-        <span className="nav-label">数据</span>
-        <NavItem
-          active={section === "history"}
-          count={undefined}
-          icon={<RefreshIcon />}
-          label="历史 / 日志"
-          onClick={() => setSection("history")}
-        />
-        <NavItem
-          active={section === "export"}
-          count={undefined}
-          icon={<DownloadIcon />}
-          label="导入 / 导出"
-          onClick={() => setSection("export")}
-        />
-
-        <small className="version">v0.5 · 仅本地</small>
-      </aside>
-
-      <section className="settings-detail scroll">
-        {section === "ai" ? (
-          <section className="detail-section is-active">
-            <header className="section-head">
-              <h1>模型连接</h1>
-            </header>
-            <div className="glass-thin ai-card">
-              <span className={`status-dot${settings.ai.enabled && aiStatus?.state !== "error" ? " is-ready" : ""}`} />
-              <div>
-                <strong>
-                  {formatProviderLabel(settings.ai.apiBase)} · {formatModelLabel(settings.ai.model)}
-                </strong>
-                <span>{settings.ai.apiBase}</span>
-              </div>
-              <button className="btn btn-ghost" type="button" disabled={busy} onClick={() => setConnectionOpen(true)}>
-                编辑
-              </button>
-            </div>
-          </section>
-        ) : null}
-
-        {section === "review" ? (
-          <section className="detail-section is-active">
-            <header className="section-head">
-              <h1>生成策略</h1>
-              <p>用自然语言描述，AI 只生成规则解释和正则表达式。</p>
-            </header>
-            <div className="glass-thin composer-card">
-              <label className="label" htmlFor="userBrief">
-                偏好
-              </label>
-              <textarea
-                id="userBrief"
-                className="textarea"
-                rows={8}
-                maxLength={600}
-                placeholder="屏蔽短平快、标题党、低质量娱乐八卦、重复搬运；保留长视频、教程、深度分析、技术内容。"
-                value={brief}
-                onChange={(event) => {
-                  setBrief(event.currentTarget.value);
-                  setBriefDirty(true);
-                }}
-              />
-              <button className="btn btn-primary" type="button" disabled={busy} onClick={() => void generateConfig()}>
-                {busy ? "生成中" : "生成正则规则"}
-              </button>
-            </div>
-          </section>
-        ) : null}
-
-        {section === "rules" ? (
-          <section className="detail-section is-active">
-            <header className="section-head">
-              <h1>规则详情</h1>
-              <p>规则由 AI 从偏好生成；每条规则只有解释和正则。</p>
-            </header>
-            <div className="rules-list glass-thin">
-              {settings.rules.length > 0 ? (
-                settings.rules.map((rule) => (
-                  <div className="rule-row" key={rule.id}>
-                    <span className="rule-kind">REGEX</span>
-                    <span className="rule-explanation">{rule.explanation}</span>
-                    <code className="rule-pattern">{rule.pattern}</code>
-                  </div>
-                ))
-              ) : (
-                <div className="rule-row">还没有规则</div>
-              )}
-            </div>
-          </section>
-        ) : null}
-
-        {section === "scope" ? (
-          <section className="detail-section is-active">
-            <header className="section-head">
-              <h1>开关</h1>
-            </header>
-            <div className="scope-stack">
-              <ScopeRow
-                checked={settings.shorts.enabled}
-                description="Shorts / Bilibili 短视频流"
-                icon={<VideoIcon />}
-                label="屏蔽短视频"
-                onChange={(enabled) =>
-                  updateSettings((current) => ({
-                    ...current,
-                    shorts: { enabled }
-                  }))
-                }
-              />
-              <ScopeRow
-                checked={settings.feedback.enabled}
-                description="自动点击不感兴趣 / 点踩"
-                icon={<FeedbackIcon />}
-                label="平台反馈"
-                onChange={(enabled) =>
-                  updateSettings((current) => ({
-                    ...current,
-                    feedback: {
-                      ...current.feedback,
-                      enabled
-                    }
-                  }))
-                }
-              />
-            </div>
-          </section>
-        ) : null}
-
-        {section === "history" ? (
-          <section className="detail-section is-active">
-            <header className="section-head">
-              <h1>历史 / 日志</h1>
-              <p>v1 暂不记录历史；过滤动作只在当前页面即时执行。</p>
-            </header>
-            <div className="empty glass-thin">No local history yet.</div>
-          </section>
-        ) : null}
-
-        {section === "export" ? (
-          <section className="detail-section is-active">
-            <header className="section-head">
-              <h1>导入 / 导出</h1>
-            </header>
-            <div className="empty glass-thin">Coming soon.</div>
-          </section>
-        ) : null}
-
-        <p className="status-line" role="status">
-          {status}
-        </p>
-      </section>
-
-      {connectionOpen ? (
-        <div className="dialog-layer">
-          <dialog className="dialog" open>
-            <form className="glass" onSubmit={(event) => event.preventDefault()}>
-              <header className="dialog-head">
-                <h2>连接 AI</h2>
-                <button className="close-btn" type="button" aria-label="关闭" onClick={() => setConnectionOpen(false)}>
-                  ×
-                </button>
-              </header>
-              <label className="label" htmlFor="apiBase">
-                API Base
-              </label>
-              <input
-                id="apiBase"
-                className="input"
-                type="url"
-                spellCheck={false}
-                placeholder="https://openrouter.ai/api/v1"
-                value={aiForm.apiBase}
-                onChange={(event) => setAiForm((current) => ({ ...current, apiBase: event.currentTarget.value }))}
-              />
-              <label className="label" htmlFor="apiKey">
-                API Key
-              </label>
-              <input
-                id="apiKey"
-                className="input"
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder={hasAiKey ? "已保存，留空则继续使用当前 Key" : "sk-..."}
-                value={aiForm.apiKey}
-                onChange={(event) => setAiForm((current) => ({ ...current, apiKey: event.currentTarget.value }))}
-              />
-              <label className="label" htmlFor="model">
-                Model
-              </label>
-              <input
-                id="model"
-                className="input"
-                type="text"
-                spellCheck={false}
-                placeholder="anthropic/claude-haiku-4-5"
-                value={aiForm.model}
-                onChange={(event) => setAiForm((current) => ({ ...current, model: event.currentTarget.value }))}
-              />
-              <footer className="dialog-actions">
-                <button className="btn btn-ghost" type="button" disabled={busy} onClick={() => void testAiConnection()}>
-                  测试
-                </button>
-                <button
-                  className="btn btn-primary"
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setBusy(true);
-                    saveAiConfigFromForm()
-                      .catch((error) => setStatus(error instanceof Error ? error.message : String(error)))
-                      .finally(() => setBusy(false));
-                  }}
-                >
-                  保存
-                </button>
-              </footer>
-            </form>
-          </dialog>
-        </div>
-      ) : null}
-    </main>
-  );
-}
-
-function NavItem({
-  active,
-  count,
-  icon,
-  label,
-  onClick
-}: {
-  active: boolean;
-  count: number | undefined;
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button className={`nav-item${active ? " is-active" : ""}`} type="button" aria-pressed={active} onClick={onClick}>
-      {icon}
-      <span>{label}</span>
-      {typeof count === "number" ? <em>{count}</em> : null}
-    </button>
-  );
-}
-
-function ScopeRow({
-  checked,
-  description,
-  icon,
-  label,
-  onChange
-}: {
-  checked: boolean;
-  description: string;
-  icon: ReactNode;
-  label: string;
-  onChange: (checked: boolean) => Promise<void>;
-}) {
-  return (
-    <label className={`scope-row glass-thin${checked ? " is-on" : ""}`}>
-      {icon}
-      <span>
-        <strong>{label}</strong>
-        <small>{description}</small>
-      </span>
-      <input checked={checked} type="checkbox" aria-label={label} onChange={(event) => void onChange(event.currentTarget.checked)} />
-    </label>
+    <AirySettings
+      aiStatus={aiStatus}
+      busy={busy}
+      hasAiKey={hasAiKey}
+      preference={preference}
+      ruleCount={ruleCount}
+      settings={settings}
+      status={status}
+      onGenerateConfig={generateConfig}
+      onPreferenceChange={(nextPreference) => {
+        setPreference(nextPreference);
+        setPreferenceDirty(true);
+      }}
+      onResetOnboarding={resetOnboarding}
+      onSaveAiConfig={saveAiDraft}
+      onTestAiConnection={testAiConnection}
+      onToggleFeedback={toggleFeedback}
+      onToggleShorts={toggleShorts}
+    />
   );
 }
 
@@ -567,27 +272,6 @@ async function sendRuntimeMessage<T = unknown>(message: Record<string, unknown>)
   }
 
   return response.payload as T;
-}
-
-function formatProviderLabel(apiBaseValue: string): string {
-  try {
-    const hostname = new URL(apiBaseValue).hostname.replace(/^www\./, "");
-    if (hostname === "openrouter.ai") {
-      return "OpenRouter";
-    }
-
-    return hostname;
-  } catch {
-    return "AI";
-  }
-}
-
-function formatModelLabel(modelValue: string): string {
-  if (modelValue.includes("claude-haiku-4-5")) {
-    return "Haiku 4.5";
-  }
-
-  return modelValue;
 }
 
 const rootElement = document.getElementById("root");

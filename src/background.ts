@@ -7,6 +7,7 @@ import {
   getAiStatus,
   getSecrets,
   getSettings,
+  getUiState,
   saveAiApiKey,
   saveAiCache,
   saveSettings,
@@ -41,8 +42,15 @@ const generatedConfigSchema = z.object({
     )
 });
 
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   await getSettings();
+
+  if (details.reason === "install") {
+    const uiState = await getUiState();
+    if (!uiState.onboardingDone) {
+      chrome.runtime.openOptionsPage();
+    }
+  }
 });
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResponse) => {

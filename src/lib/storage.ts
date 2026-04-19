@@ -1,10 +1,11 @@
 import { DEFAULT_AI_STATUS, DEFAULT_SETTINGS } from "./defaults";
-import type { AiCacheEntry, AiStatus, CleanFeedSecrets, CleanFeedSettings } from "./types";
+import type { AiCacheEntry, AiStatus, CleanFeedSecrets, CleanFeedSettings, CleanFeedUiState } from "./types";
 
 const SETTINGS_KEY = "settings";
 const SECRETS_KEY = "secrets";
 const AI_STATUS_KEY = "aiStatus";
 const AI_CACHE_KEY = "aiCache";
+const UI_STATE_KEY = "uiState";
 
 type StoredShape = {
   settings?: Partial<CleanFeedSettings> & {
@@ -14,6 +15,7 @@ type StoredShape = {
   secrets?: CleanFeedSecrets;
   aiStatus?: AiStatus;
   aiCache?: Record<string, AiCacheEntry>;
+  uiState?: Partial<CleanFeedUiState>;
 };
 
 export async function getSettings(): Promise<CleanFeedSettings> {
@@ -61,6 +63,18 @@ export async function getAiCache(): Promise<Record<string, AiCacheEntry>> {
 
 export async function saveAiCache(cache: Record<string, AiCacheEntry>): Promise<void> {
   await storageSet(chrome.storage.local, { [AI_CACHE_KEY]: cache });
+}
+
+export async function getUiState(): Promise<CleanFeedUiState> {
+  const result = await storageGet<StoredShape>(chrome.storage.local, [UI_STATE_KEY]);
+
+  return {
+    onboardingDone: result.uiState?.onboardingDone === true
+  };
+}
+
+export async function saveUiState(uiState: CleanFeedUiState): Promise<void> {
+  await storageSet(chrome.storage.local, { [UI_STATE_KEY]: uiState });
 }
 
 export function normalizeSettings(input?: StoredShape["settings"]): CleanFeedSettings {
