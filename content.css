@@ -1,4 +1,25 @@
 [data-cleanfeed-hidden] {
+  position: relative;
+  opacity: 0.88;
+  transition: opacity 160ms ease;
+}
+
+[data-cleanfeed-hidden="rule"] {
+  outline: 2px solid rgba(98, 125, 163, 0.32);
+  outline-offset: -2px;
+}
+
+[data-cleanfeed-hidden="ai"] {
+  outline: 2px solid rgba(123, 161, 146, 0.42);
+  outline-offset: -2px;
+}
+
+[data-cleanfeed-hidden="platform-shorts"] {
+  outline: 2px solid rgba(190, 142, 110, 0.38);
+  outline-offset: -2px;
+}
+
+[data-cleanfeed-hidden] > :not(.cleanfeed-badge) {
   filter: blur(12px) saturate(0.55) brightness(0.92);
   opacity: 0.62;
   transition:
@@ -8,8 +29,47 @@
 
 [data-cleanfeed-hidden]:hover,
 [data-cleanfeed-hidden]:focus-within {
+  opacity: 1;
+}
+
+[data-cleanfeed-hidden]:hover > :not(.cleanfeed-badge),
+[data-cleanfeed-hidden]:focus-within > :not(.cleanfeed-badge) {
   filter: none;
   opacity: 1;
+}
+
+.cleanfeed-badge {
+  position: absolute;
+  z-index: 2147483647;
+  top: 8px;
+  left: 8px;
+  max-width: min(80%, 260px);
+  overflow: hidden;
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  color: #2a3246;
+  font: 600 11px/1.25 -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-cleanfeed-hidden="rule"] > .cleanfeed-badge {
+  background: rgba(230, 238, 248, 0.92);
+  color: #3f5878;
+}
+
+[data-cleanfeed-hidden="ai"] > .cleanfeed-badge {
+  background: rgba(232, 246, 239, 0.92);
+  color: #426d5b;
+}
+
+[data-cleanfeed-hidden="platform-shorts"] > .cleanfeed-badge {
+  background: rgba(248, 236, 226, 0.92);
+  color: #805a42;
 }
 
 html.cleanfeed-hide-shorts ytd-rich-shelf-renderer[is-shorts],

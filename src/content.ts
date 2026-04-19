@@ -45,6 +45,7 @@ let aiElementsByKey = new Map<string, Set<HTMLElement>>();
 let aiPendingCandidates = new Map<string, VideoCandidate>();
 let aiInFlightKeys = new Set<string>();
 let aiReviewResults = new Map<string, AiReviewResult>();
+let aiLastState = "idle";
 let feedbackQueue: FeedbackQueueItem[] = [];
 let feedbackQueuedKeys = new Set<string>();
 let feedbackAttemptedKeys = new Set<string>();
@@ -306,14 +307,20 @@ function applyRootClasses() {
 
   root.classList.toggle("cleanfeed-enabled", settings.enabled);
   root.classList.toggle("cleanfeed-hide-shorts", settings.enabled && settings.shorts.enabled);
+  root.dataset.cleanfeedAi = settings.enabled && settings.ai.enabled ? aiLastState : "disabled";
   root.classList.add("cleanfeed-ready");
 }
 
 function resetHiddenElements() {
   document.querySelectorAll<HTMLElement>("[data-cleanfeed-hidden]").forEach((element) => {
     element.style.removeProperty("display");
+    if (element.dataset.cleanfeedPositioned === "true") {
+      element.style.removeProperty("position");
+      element.removeAttribute("data-cleanfeed-positioned");
+    }
     element.removeAttribute("data-cleanfeed-hidden");
     element.removeAttribute("data-cleanfeed-reason");
+    element.querySelector<HTMLElement>(".cleanfeed-badge")?.remove();
   });
 }
 
@@ -329,6 +336,7 @@ function resetAiReviewState() {
   aiPendingCandidates = new Map();
   aiInFlightKeys = new Set();
   aiReviewResults = new Map();
+  aiLastState = "idle";
 }
 
 function refreshAiElementIndex(cards: CardCandidate[]) {
@@ -349,6 +357,7 @@ function queueAiReview(candidate: VideoCandidate) {
     return;
   }
 
+  setAiDebugState("queued");
   aiPendingCandidates.set(candidate.key, candidate);
 }
 
@@ -377,12 +386,16 @@ async function processAiReviewQueue() {
     aiPendingCandidates.delete(candidate.key);
     aiInFlightKeys.add(candidate.key);
   });
+  setAiDebugState("working");
 
   try {
     const response = await sendRuntimeMessage<AnalyzeVideosResponse>({
       type: "cleanfeed:analyze-videos",
       candidates: batch
     });
+    if (response.results.length === 0 && batch.length > 0) {
+      setAiDebugState("skipped");
+    }
 
     const resultKeys = new Set(response.results.map((result) => result.key));
     response.results.forEach((result) => {
@@ -401,6 +414,7 @@ async function processAiReviewQueue() {
     });
   } catch (error) {
     aiCooldownUntil = Date.now() + 30_000;
+    setAiDebugState("error");
     console.warn("[Clean Feed] AI review skipped", error);
   } finally {
     batch.forEach((candidate) => aiInFlightKeys.delete(candidate.key));
@@ -408,6 +422,8 @@ async function processAiReviewQueue() {
 
   if (aiPendingCandidates.size > 0) {
     scheduleAiReview();
+  } else if (aiLastState !== "error" && aiLastState !== "skipped") {
+    setAiDebugState("ready");
   }
 }
 
@@ -433,7 +449,44 @@ function hideElement(element: HTMLElement, candidate: VideoCandidate, source: st
   element.dataset.cleanfeedHidden = source;
   element.dataset.cleanfeedReason = reason;
   element.style.removeProperty("display");
+  renderBadge(element, source, reason);
   queuePlatformFeedback(element, candidate);
+}
+
+function renderBadge(element: HTMLElement, source: string, reason: string) {
+  element.querySelector<HTMLElement>(".cleanfeed-badge")?.remove();
+
+  const badge = document.createElement("span");
+  badge.className = "cleanfeed-badge";
+  badge.textContent = formatBadgeLabel(source, reason);
+
+  if (getComputedStyle(element).position === "static") {
+    element.dataset.cleanfeedPositioned = "true";
+    element.style.position = "relative";
+  }
+
+  element.append(badge);
+}
+
+function formatBadgeLabel(source: string, reason: string): string {
+  if (source === "ai") {
+    return `AI · ${reason || "低质内容"}`;
+  }
+
+  if (source === "rule") {
+    return `REGEX · ${reason || "规则命中"}`;
+  }
+
+  if (source === "platform-shorts") {
+    return "SHORTS";
+  }
+
+  return reason || "Clean Feed";
+}
+
+function setAiDebugState(state: string) {
+  aiLastState = state;
+  document.documentElement.dataset.cleanfeedAi = state;
 }
 
 function queuePlatformFeedback(element: HTMLElement, candidate: VideoCandidate) {
