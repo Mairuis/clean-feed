@@ -26,7 +26,7 @@ const reviewOutputSchema = z.object({
     z.object({
       key: z.string(),
       verdict: z.enum(["low_quality", "high_quality", "uncertain"]),
-      reason: z.string().max(180)
+      reason: z.string().min(1)
     })
   )
 });
@@ -49,7 +49,6 @@ const generatedConfigSchema = z.object({
         })
       ])
     )
-    .max(16)
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -126,7 +125,8 @@ async function testAiConnection() {
         message: z.string()
       })
     }),
-    prompt: "Return JSON confirming the connection works. Keep the message under 20 words."
+    prompt:
+      "Return JSON only. Do not wrap it in markdown or code fences. Shape: {\"ok\": true, \"message\": \"under 20 words\"}. Confirm the connection works."
   });
 
   const output = readStructuredOutput<{ ok: boolean; message: string }>(result);
@@ -145,20 +145,21 @@ async function generateConfig(brief: string) {
     model,
     output: Output.object({ schema: generatedConfigSchema }),
     system:
-      "You generate browser extension filtering configuration. Produce practical rules from the user's preference. Keep keyword rules precise. Use duration rules for short-form attention traps. The LLM reviewer must be conservative: uncertain content should stay visible.",
+      "You generate browser extension filtering configuration. Produce practical rules from the user's preference. Keep keyword rules precise. Use duration rules for short-form attention traps. The LLM reviewer must be conservative: uncertain content should stay visible. Return JSON only. Do not wrap it in markdown or code fences.",
     prompt: [
       "User preference:",
       safeBrief,
       "",
-      "Return a concise summary, a reviewer instruction, and programmatic rules.",
+      "Return a JSON object with summary, reviewerInstruction, and rules.",
       "Allowed rules: keyword substring match against title/channel, and duration threshold in seconds.",
-      "Do not add broad keywords that would hide high-quality educational content."
+      "Do not add broad keywords that would hide high-quality educational content.",
+      "Keep rules to 16 items or fewer."
     ].join("\n")
   });
 
   const output = readStructuredOutput<z.infer<typeof generatedConfigSchema>>(result);
   const timestamp = Date.now();
-  const generatedRules = output.rules.map<CleanFeedRule>((rule, index) => {
+  const generatedRules = output.rules.slice(0, 16).map<CleanFeedRule>((rule, index) => {
     const id = `ai-${timestamp}-${index}`;
 
     if (rule.type === "keyword") {
@@ -250,7 +251,9 @@ async function analyzeVideos(candidates: VideoCandidate[]) {
       "You classify video feed items for a browser extension.",
       settings.ai.reviewerInstruction,
       "Use only the provided title, channel, site, and duration. Do not infer hidden context.",
-      "Return low_quality only when the item clearly wastes attention or is low-information. Return uncertain when unsure."
+      "Return low_quality only when the item clearly wastes attention or is low-information. Return uncertain when unsure.",
+      "Return JSON only as a top-level object with an items array. Each item must include key, verdict, and reason.",
+      "Do not wrap the JSON in markdown or code fences."
     ].join("\n"),
     prompt: JSON.stringify(
       misses.map((candidate) => ({

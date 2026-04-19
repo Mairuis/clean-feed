@@ -1,6 +1,6 @@
 {
   "name": "clean-feed",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.30.3",
@@ -8,6 +8,7 @@
     "build": "node scripts/build.mjs",
     "check": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e:llm": "CLEANFEED_RUN_LLM_E2E=1 vitest run src/e2e/llm.e2e.test.ts --testTimeout=45000",
     "validate": "npm run check && npm run test && npm run build && node scripts/validate-manifest.mjs && node scripts/validate-manifest.mjs release/clean-feed/manifest.json"
   },
   "dependencies": {

@@ -31,7 +31,8 @@ export function createLanguageModel(apiBase: string, apiKey: string, model: stri
   return createOpenAICompatible({
     name: "custom",
     apiKey,
-    baseURL: apiBase
+    baseURL: apiBase,
+    supportsStructuredOutputs: supportsOpenAICompatibleStructuredOutputs(apiBase)
   })(model);
 }
 
@@ -43,4 +44,10 @@ function parseApiBase(apiBase: string): URL {
   }
 
   return url;
+}
+
+function supportsOpenAICompatibleStructuredOutputs(apiBase: string): boolean {
+  const hostname = parseApiBase(apiBase).hostname.replace(/^www\./, "").toLowerCase();
+
+  return hostname === "api.openai.com" || hostname === "generativelanguage.googleapis.com" || hostname === "openrouter.ai";
 }
