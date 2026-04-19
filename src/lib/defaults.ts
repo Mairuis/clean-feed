@@ -1,7 +1,7 @@
 import type { AiStatus, CleanFeedSettings } from "./types";
 
-export const DEFAULT_AI_BASE = "https://api.anthropic.com/v1";
-export const DEFAULT_AI_MODEL = "claude-3-5-haiku-latest";
+export const DEFAULT_AI_BASE = "https://openrouter.ai/api/v1";
+export const DEFAULT_AI_MODEL = "anthropic/claude-haiku-4.5";
 export const AI_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const DEFAULT_USER_BRIEF =
@@ -27,11 +27,11 @@ export const DEFAULT_SETTINGS: CleanFeedSettings = {
     apiBase: DEFAULT_AI_BASE,
     model: DEFAULT_AI_MODEL,
     userBrief: DEFAULT_USER_BRIEF,
-    generatedSummary: "默认配置会先屏蔽 60 秒以内的视频。配置 AI 后，可以用一段话生成更贴近你偏好的规则。",
+    generatedSummary: "默认使用 OpenRouter + Claude Haiku 4.5。输入一段话后，Clean Feed 会生成快速规则和保守的 LLM 后置判断策略。",
     reviewerInstruction: DEFAULT_REVIEWER_INSTRUCTION
   },
   feedback: {
-    enabled: false,
+    enabled: true,
     preferredAction: "not_interested",
     maxPerSession: 20
   }

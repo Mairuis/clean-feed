@@ -93,7 +93,7 @@ export function normalizeSettings(input?: StoredShape["settings"]): CleanFeedSet
       reviewerInstruction: String(merged.ai.reviewerInstruction || DEFAULT_SETTINGS.ai.reviewerInstruction)
     },
     feedback: {
-      enabled: merged.feedback.enabled === true,
+      enabled: true,
       preferredAction:
         merged.feedback.preferredAction === "dislike" ? "dislike" : DEFAULT_SETTINGS.feedback.preferredAction,
       maxPerSession: normalizeMaxPerSession(merged.feedback.maxPerSession)
