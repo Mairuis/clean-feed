@@ -1,7 +1,7 @@
 import { getOptionalPermissionOrigin } from "./lib/provider";
 import { activeRuleCount, formatDuration } from "./lib/rules";
 import { getAiStatus, getSecrets, getSettings, saveSettings } from "./lib/storage";
-import type { CleanFeedSettings } from "./lib/types";
+import type { AiStatus, CleanFeedSettings } from "./lib/types";
 
 const connectionDialog = document.querySelector<HTMLDialogElement>("#connectionDialog");
 const openConnectionButton = document.querySelector<HTMLButtonElement>("#openConnection");
@@ -79,19 +79,19 @@ async function render() {
   }
 
   if (rulesCount) {
-    rulesCount.textContent = `${activeRuleCount(settings.rules)} 条`;
+    rulesCount.textContent = String(activeRuleCount(settings.rules));
   }
 
   if (aiState) {
-    aiState.textContent = settings.ai.enabled ? aiStatus.message : "待连接";
+    aiState.textContent = formatAiState(settings.ai.enabled, aiStatus.state);
   }
 
   if (feedbackState) {
-    feedbackState.textContent = "自动不感兴趣";
+    feedbackState.textContent = "AUTO";
   }
 
   renderGeneratedConfig(settings);
-  setStatus(settings.ai.enabled ? aiStatus.message : "连接 OpenRouter 后，输入偏好即可生成净化方案。");
+  setStatus(settings.ai.enabled ? aiStatus.message : "AI 未连接");
 }
 
 async function saveAiConfigFromForm() {
@@ -227,4 +227,21 @@ function formatModelLabel(modelValue: string): string {
   }
 
   return modelValue;
+}
+
+function formatAiState(isEnabled: boolean, state: AiStatus["state"]): string {
+  if (!isEnabled) {
+    return "OFF";
+  }
+
+  switch (state) {
+    case "ready":
+      return "READY";
+    case "working":
+      return "RUN";
+    case "error":
+      return "ERR";
+    default:
+      return "ON";
+  }
 }

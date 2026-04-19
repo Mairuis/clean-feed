@@ -1,5 +1,6 @@
 import { activeRuleCount } from "./lib/rules";
 import { getAiStatus, getSettings, saveSettings } from "./lib/storage";
+import type { AiStatus } from "./lib/types";
 
 const enabledInput = document.querySelector<HTMLInputElement>("#enabled");
 const enabledLabel = document.querySelector<HTMLElement>("#enabled-label");
@@ -40,22 +41,39 @@ async function render() {
   }
 
   if (enabledLabel) {
-    enabledLabel.textContent = settings.enabled ? "正在过滤 YouTube 和 Bilibili" : "已暂停";
+    enabledLabel.textContent = settings.enabled ? "ON" : "PAUSE";
   }
 
   if (rulesCount) {
-    rulesCount.textContent = `${activeRuleCount(settings.rules)} 条启用`;
+    rulesCount.textContent = String(activeRuleCount(settings.rules));
   }
 
   if (aiState) {
-    aiState.textContent = settings.ai.enabled ? aiStatus.message : "未启用";
+    aiState.textContent = formatAiState(settings.ai.enabled, aiStatus.state);
   }
 
-  setStatus(settings.ai.generatedSummary);
+  setStatus(settings.enabled ? "净化中" : "已暂停");
 }
 
 function setStatus(message: string) {
   if (statusElement) {
     statusElement.textContent = message;
+  }
+}
+
+function formatAiState(isEnabled: boolean, state: AiStatus["state"]): string {
+  if (!isEnabled) {
+    return "OFF";
+  }
+
+  switch (state) {
+    case "ready":
+      return "READY";
+    case "working":
+      return "RUN";
+    case "error":
+      return "ERR";
+    default:
+      return "ON";
   }
 }
