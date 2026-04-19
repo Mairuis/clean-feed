@@ -12,7 +12,7 @@ Clean Feed 是一个跨视频网站的信息流净化浏览器扩展。v1 支持
 Clean Feed 默认使用 OpenRouter：
 
 - API Base：`https://openrouter.ai/api/v1`
-- Model：`anthropic/claude-haiku-4.5`
+- Model：`anthropic/claude-haiku-4-5`
 
 平台反馈默认自动开启：对已经被 Clean Feed 过滤的卡片，自动尝试点击“不感兴趣”，帮助推荐算法减少同类内容。同一视频在当前页面只会尝试一次。
 

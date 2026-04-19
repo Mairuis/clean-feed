@@ -1,7 +1,7 @@
 import type { AiStatus, CleanFeedSettings } from "./types";
 
 export const DEFAULT_AI_BASE = "https://openrouter.ai/api/v1";
-export const DEFAULT_AI_MODEL = "anthropic/claude-haiku-4.5";
+export const DEFAULT_AI_MODEL = "anthropic/claude-haiku-4-5";
 export const AI_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const DEFAULT_USER_BRIEF =

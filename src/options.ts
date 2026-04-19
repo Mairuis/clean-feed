@@ -222,7 +222,7 @@ function formatProviderLabel(apiBaseValue: string): string {
 }
 
 function formatModelLabel(modelValue: string): string {
-  if (modelValue.includes("claude-haiku-4.5")) {
+  if (modelValue.includes("claude-haiku-4-5")) {
     return "Haiku 4.5";
   }
 
