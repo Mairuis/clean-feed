@@ -12,7 +12,7 @@
   --accent: #8aa8c8;
   --font-cn: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, sans-serif;
   --font-en: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
-  --font-serif: "Songti SC", "Noto Serif SC", Georgia, serif;
+  --font-serif: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -25,6 +25,7 @@ body {
   background: #e6eef8;
   color: var(--ink-900);
   font-family: var(--font-cn);
+  font-weight: 500;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -125,8 +126,8 @@ svg {
   padding: 0 18px;
   border-radius: 999px;
   font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-weight: 650;
+  letter-spacing: 0;
   transition: background 0.2s ease, transform 0.2s ease;
 }
 
@@ -190,8 +191,8 @@ svg {
   margin: 0;
   color: var(--ink-700);
   font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 
 .tip {
@@ -233,8 +234,8 @@ svg {
   color: var(--ink-500);
   font-family: var(--font-en);
   font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.24em;
+  font-weight: 700;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
@@ -242,9 +243,9 @@ svg {
   margin: 4px 0 0;
   color: var(--ink-900);
   font-family: var(--font-serif);
-  font-size: 26px;
-  font-weight: 300;
-  letter-spacing: 0.04em;
+  font-size: 25px;
+  font-weight: 650;
+  letter-spacing: 0;
   line-height: 1.35;
 }
 
@@ -252,6 +253,7 @@ svg {
   margin-top: 4px;
   color: var(--ink-500);
   font-size: 12.5px;
+  font-weight: 500;
 }
 
 .brand-mark {
@@ -367,8 +369,8 @@ svg {
   color: var(--ink-900);
   font-family: var(--font-en);
   font-size: 13.5px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 
 .tabbar {
@@ -425,7 +427,7 @@ svg {
   color: var(--ink-900);
   font-family: var(--font-en);
   font-size: 40px;
-  font-weight: 200;
+  font-weight: 450;
   letter-spacing: 0;
   line-height: 1;
 }
@@ -433,6 +435,7 @@ svg {
 .hero-line span {
   color: var(--ink-500);
   font-size: 11.5px;
+  font-weight: 550;
 }
 
 .llm-pill {
@@ -447,7 +450,8 @@ svg {
   color: var(--ink-500);
   font-family: var(--font-en);
   font-size: 10px;
-  letter-spacing: 0.04em;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 
 .llm-pill i {
@@ -476,6 +480,7 @@ svg {
   margin-top: 8px;
   color: var(--ink-500);
   font-size: 10.5px;
+  font-weight: 650;
 }
 
 .toggle-stack {
@@ -505,7 +510,7 @@ svg {
   flex: 1;
   color: var(--ink-900);
   font-size: 12.5px;
-  font-weight: 400;
+  font-weight: 650;
 }
 
 .popup-actions {
@@ -527,13 +532,14 @@ svg {
 }
 
 .view-head span {
-  font-weight: 500;
+  font-weight: 650;
 }
 
 .view-head small {
   margin-left: auto;
   color: var(--ink-400);
   font-size: 10.5px;
+  font-weight: 600;
 }
 
 .popup-textarea {
@@ -765,7 +771,7 @@ svg {
 
 .connection-state strong {
   overflow: hidden;
-  font-weight: 400;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -868,7 +874,7 @@ svg {
   flex: 1;
   color: var(--ink-900);
   font-size: 12.5px;
-  font-weight: 400;
+  font-weight: 650;
 }
 
 .generation-row em,
@@ -882,7 +888,8 @@ svg {
 .generation-note {
   color: var(--ink-500);
   font-size: 11px;
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .generation-note.is-error {
