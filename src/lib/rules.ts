@@ -43,26 +43,17 @@ export function applyProgrammaticRules(
   candidate: VideoCandidate,
   rules: CleanFeedRule[]
 ): RuleMatch | null {
+  const ruleText = buildVideoRuleText(candidate);
+
   for (const rule of rules) {
     if (!rule.enabled) {
       continue;
     }
 
-    if (rule.type === "keyword" && matchesKeywordRule(candidate, rule.value)) {
+    if (matchesRegexRule(ruleText, rule.pattern)) {
       return {
         ruleId: rule.id,
-        reason: rule.label || `包含屏蔽词：${rule.value}`
-      };
-    }
-
-    if (
-      rule.type === "duration" &&
-      typeof candidate.durationSeconds === "number" &&
-      candidate.durationSeconds < rule.thresholdSeconds
-    ) {
-      return {
-        ruleId: rule.id,
-        reason: rule.label || `短于 ${formatDuration(rule.thresholdSeconds)}`
+        reason: rule.explanation || `Regex: ${rule.pattern}`
       };
     }
   }
@@ -90,6 +81,31 @@ export function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+export function buildVideoRuleText(candidate: VideoCandidate): string {
+  const durationSeconds = candidate.durationSeconds;
+  const durationText = candidate.durationText || (durationSeconds === undefined ? "" : formatDuration(durationSeconds));
+  const durationMarkers =
+    durationSeconds === undefined
+      ? ["§DURATION_UNKNOWN"]
+      : [
+          `§DURATION=${durationText}`,
+          `§DURATION_SECONDS=${durationSeconds}`,
+          durationSeconds < 60 ? "§DURATION_LT_60" : "",
+          durationSeconds < 90 ? "§DURATION_LT_90" : "",
+          durationSeconds < 180 ? "§DURATION_LT_180" : "",
+          durationSeconds < 300 ? "§DURATION_LT_300" : ""
+        ].filter(Boolean);
+
+  return [
+    `§SITE=${candidate.site}`,
+    `§TITLE=${candidate.title}`,
+    `§CHANNEL=${candidate.channel || ""}`,
+    `§URL=${candidate.url}`,
+    ...durationMarkers,
+    `§TEXT=${[candidate.title, candidate.channel || "", durationText].filter(Boolean).join(" ")}`
+  ].join("\n");
+}
+
 export function formatDuration(seconds: number): string {
   const safeSeconds = Math.max(0, Math.floor(seconds));
   const minutes = Math.floor(safeSeconds / 60);
@@ -104,18 +120,16 @@ export function formatDuration(seconds: number): string {
   return `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 
-function matchesKeywordRule(candidate: VideoCandidate, value: string): boolean {
-  const keywords = value
-    .split(/[\n,，]/)
-    .map((keyword) => normalizeText(keyword))
-    .filter(Boolean);
-
-  if (keywords.length === 0) {
+function matchesRegexRule(value: string, pattern: string): boolean {
+  if (!pattern.trim()) {
     return false;
   }
 
-  const haystack = normalizeText([candidate.title, candidate.channel || ""].join(" "));
-  return keywords.some((keyword) => haystack.includes(keyword));
+  try {
+    return new RegExp(pattern, "iu").test(value);
+  } catch {
+    return false;
+  }
 }
 
 function normalizeUrl(value: string): string {

@@ -7,152 +7,116 @@
     <link rel="stylesheet" href="options.css">
   </head>
   <body>
-    <main class="shell" aria-label="Clean Feed 设置">
-      <header class="topbar">
-        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
-          <path d="M32 10v7M22 14l4 6M42 14l-4 6M18 29h28M14 38c7-5 14 5 21 0s11-2 15 0M16 48c7-5 14 5 21 0s10-2 13 0"/>
-        </svg>
-        <button id="openConnection" class="icon-button" type="button" aria-label="AI 连接" title="AI 连接">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 3l1.9 4.3 4.7.4-3.6 3 1.1 4.6-4.1-2.4-4.1 2.4L9 10.7l-3.6-3 4.7-.4L12 3z"/>
-            <path d="M19 16v5M16.5 18.5h5"/>
-          </svg>
-        </button>
-      </header>
-
-      <section class="hero" aria-labelledby="pageTitle">
-        <p id="connectionState">OpenRouter · Haiku 4.5</p>
-        <h1 id="pageTitle">Clean Feed</h1>
-      </section>
-
-      <section class="composer" aria-label="净化偏好">
-        <label class="sr-only" for="userBrief">描述你不想再看到的内容</label>
-        <textarea id="userBrief" rows="6" spellcheck="true" placeholder="少一些短平快，保留深度内容…"></textarea>
-        <div class="compose-dock">
-          <button id="generateConfig" class="primary-icon" type="button" aria-label="生成净化方案" title="生成净化方案">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 19l10-10M14 4l1.3 3.7L19 9l-3.7 1.3L14 14l-1.3-3.7L9 9l3.7-1.3L14 4z"/>
-              <path d="M5 5l1 2.2L8 8l-2 .8L5 11l-1-2.2L2 8l2-.8L5 5zM18 16l.8 1.7 1.7.8-1.7.8L18 21l-.8-1.7-1.7-.8 1.7-.8L18 16z"/>
+    <main class="settings-shell noise" aria-label="Clean Feed 高级设置">
+      <div class="dawn-bg" aria-hidden="true"></div>
+      <aside class="settings-nav">
+        <div class="nav-brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="2"></circle>
+              <path d="M12 3c2 2 2 5 0 7-2-2-2-5 0-7zM12 14c2 2 2 5 0 7-2-2-2-5 0-7zM3 12c2-2 5-2 7 0-2 2-5 2-7 0zM14 12c2-2 5-2 7 0-2 2-5 2-7 0z"></path>
             </svg>
-          </button>
+          </div>
+          <div>
+            <strong>Clean Feed</strong>
+            <span>高级设置</span>
+          </div>
         </div>
+
+        <span class="nav-label">AI</span>
+        <button class="nav-item is-active" type="button" data-section="ai"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"></path><circle cx="12" cy="12" r="3"></circle></svg><span>模型连接</span></button>
+        <button class="nav-item" type="button" data-section="review"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"></path></svg><span>生成策略</span></button>
+
+        <span class="nav-label">规则</span>
+        <button class="nav-item" type="button" data-section="rules"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"></path></svg><span>规则详情</span><em id="navRulesCount">0</em></button>
+        <button class="nav-item" type="button" data-section="scope"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"></path></svg><span>开关</span></button>
+
+        <span class="nav-label">数据</span>
+        <button class="nav-item" type="button" data-section="history"><svg viewBox="0 0 24 24"><path d="M3 3v6h6M21 21v-6h-6M3 9a9 9 0 0 1 15-3M21 15a9 9 0 0 1-15 3"></path></svg><span>历史 / 日志</span></button>
+        <button class="nav-item" type="button" data-section="export"><svg viewBox="0 0 24 24"><path d="M12 3v12M5 10l7 7 7-7M3 21h18"></path></svg><span>导入 / 导出</span></button>
+
+        <small class="version">v0.4 · 仅本地</small>
+      </aside>
+
+      <section class="settings-detail scroll">
+        <section class="detail-section is-active" data-section-panel="ai">
+          <header class="section-head"><h1>模型连接</h1></header>
+          <div class="glass-thin ai-card">
+            <span id="aiDot" class="status-dot"></span>
+            <div>
+              <strong id="connectionState">OpenRouter · Haiku 4.5</strong>
+              <span id="apiBaseView">https://openrouter.ai/api/v1</span>
+            </div>
+            <button id="openConnection" class="btn btn-ghost" type="button">编辑</button>
+          </div>
+        </section>
+
+        <section class="detail-section" data-section-panel="review">
+          <header class="section-head">
+            <h1>生成策略</h1>
+            <p>用自然语言描述，AI 只生成规则解释和正则表达式。</p>
+          </header>
+          <div class="glass-thin composer-card">
+            <label class="label" for="userBrief">偏好</label>
+            <textarea id="userBrief" class="textarea" rows="8" maxlength="600" placeholder="屏蔽短平快、标题党、低质量娱乐八卦、重复搬运；保留长视频、教程、深度分析、技术内容。"></textarea>
+            <button id="generateConfig" class="btn btn-primary" type="button">生成正则规则</button>
+          </div>
+        </section>
+
+        <section class="detail-section" data-section-panel="rules">
+          <header class="section-head">
+            <h1>规则详情</h1>
+            <p>规则由 AI 从偏好生成；每条规则只有解释和正则。</p>
+          </header>
+          <div id="rulesView" class="rules-list glass-thin"></div>
+        </section>
+
+        <section class="detail-section" data-section-panel="scope">
+          <header class="section-head"><h1>开关</h1></header>
+          <div class="scope-stack">
+            <label class="scope-row glass-thin">
+              <svg viewBox="0 0 24 24"><rect x="3" y="6" width="14" height="12" rx="1"></rect><path d="M17 10l4-2v8l-4-2"></path></svg>
+              <span><strong>屏蔽短视频</strong><small>Shorts / Bilibili 短视频流</small></span>
+              <input id="shortsToggle" type="checkbox">
+            </label>
+            <label class="scope-row glass-thin">
+              <svg viewBox="0 0 24 24"><path d="M7 10v12H3V10h4zM21 11a2 2 0 0 0-2-2h-5.5l1-4a2 2 0 0 0-4-1L7 10v12h11a2 2 0 0 0 2-1.5l2-7a2 2 0 0 0-1-2.5z"></path></svg>
+              <span><strong>平台反馈</strong><small>自动点击不感兴趣 / 点踩</small></span>
+              <input id="feedbackToggle" type="checkbox">
+            </label>
+          </div>
+        </section>
+
+        <section class="detail-section" data-section-panel="history">
+          <header class="section-head"><h1>历史 / 日志</h1><p>v1 暂不记录历史；过滤动作只在当前页面即时执行。</p></header>
+          <div class="empty glass-thin">No local history yet.</div>
+        </section>
+
+        <section class="detail-section" data-section-panel="export">
+          <header class="section-head"><h1>导入 / 导出</h1></header>
+          <div class="empty glass-thin">Coming soon.</div>
+        </section>
+
+        <p id="status" class="status-line" role="status">读取设置中...</p>
       </section>
-
-      <section class="status-strip" aria-label="运行状态">
-        <div title="快速规则">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M13 2L4 14h7l-1 8 10-13h-7l1-7z"/>
-          </svg>
-          <strong id="rulesCount">-</strong>
-        </div>
-        <div title="LLM 后置">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 3a7 7 0 0 0-7 7c0 5 7 11 7 11s7-6 7-11a7 7 0 0 0-7-7z"/>
-            <path d="M9 10h6M10 13h4"/>
-          </svg>
-          <strong id="aiState">-</strong>
-        </div>
-        <div title="平台反馈">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M7 11v9H4v-9h3zM7 11l4-7h2a2 2 0 0 1 2 2l-.5 4H19a2 2 0 0 1 2.9 2.2l-2 6A2 2 0 0 1 18 20H7"/>
-          </svg>
-          <strong id="feedbackState">-</strong>
-        </div>
-      </section>
-
-      <p id="status" class="status-line" role="status">读取设置中...</p>
-
-      <details class="details">
-        <summary>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 6h14M5 12h14M5 18h9"/>
-          </svg>
-          <span>方案</span>
-        </summary>
-        <p id="generatedSummary" class="summary">读取设置中...</p>
-        <div class="generated-grid">
-          <section aria-label="快速规则">
-            <h2>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M13 2L4 14h7l-1 8 10-13h-7l1-7z"/>
-              </svg>
-              <span>规则</span>
-            </h2>
-            <div id="rulesView" class="rule-list"></div>
-          </section>
-          <section aria-label="LLM 判断策略">
-            <h2>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 3a7 7 0 0 0-7 7c0 5 7 11 7 11s7-6 7-11a7 7 0 0 0-7-7z"/>
-                <path d="M9 10h6M10 13h4"/>
-              </svg>
-              <span>AI</span>
-            </h2>
-            <p id="reviewerView" class="reviewer-text"></p>
-          </section>
-        </div>
-      </details>
     </main>
 
     <dialog id="connectionDialog" class="dialog">
-      <form method="dialog">
-        <div class="dialog-head">
-          <div>
-            <h2>AI</h2>
-            <p>OpenRouter · Haiku 4.5</p>
-          </div>
-          <button id="closeConnection" class="icon-button" type="button" aria-label="关闭" title="关闭">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18"/>
-            </svg>
-          </button>
-        </div>
-
-        <label class="field">
-          <span>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 12h16M12 4v16"/>
-            </svg>
-            API Base
-          </span>
-          <input id="apiBase" type="url" spellcheck="false" placeholder="https://openrouter.ai/api/v1">
-        </label>
-
-        <label class="field">
-          <span>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M8 7h8M8 12h8M8 17h5"/>
-            </svg>
-            Model
-          </span>
-          <input id="model" type="text" spellcheck="false" placeholder="anthropic/claude-haiku-4-5">
-        </label>
-
-        <label class="field">
-          <span>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M15 7a4 4 0 1 0 2 3.5L22 10V7h-3V4h-3l-1 3z"/>
-              <path d="M7 13l-3 3"/>
-            </svg>
-            API Key
-          </span>
-          <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="留空则保留已保存的 Key">
-        </label>
-
-        <div class="dialog-actions">
-          <button id="saveAi" type="button" aria-label="保存连接" title="保存连接">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 12l4 4L19 6"/>
-            </svg>
-            <span>保存</span>
-          </button>
-          <button id="testAi" class="secondary-action" type="button" aria-label="测试连接" title="测试连接">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3v4M12 17v4M4.2 7.5l3.4 2M16.4 14l3.4 2M4.2 16.5l3.4-2M16.4 10l3.4-2"/>
-            </svg>
-            <span>测试</span>
-          </button>
-        </div>
+      <form method="dialog" class="glass">
+        <header class="dialog-head">
+          <h2>连接 AI</h2>
+          <button id="closeConnection" class="close-btn" type="button" aria-label="关闭">×</button>
+        </header>
+        <label class="label" for="apiBase">API Base</label>
+        <input id="apiBase" class="input" type="url" spellcheck="false" placeholder="https://openrouter.ai/api/v1">
+        <label class="label" for="apiKey">API Key</label>
+        <input id="apiKey" class="input" type="password" autocomplete="off" spellcheck="false" placeholder="留空则保留已保存的 Key">
+        <label class="label" for="model">Model</label>
+        <input id="model" class="input" type="text" spellcheck="false" placeholder="anthropic/claude-haiku-4-5">
+        <footer class="dialog-actions">
+          <button id="testAi" class="btn btn-ghost" type="button">测试</button>
+          <button id="saveAi" class="btn btn-primary" type="button">保存</button>
+        </footer>
       </form>
     </dialog>
 

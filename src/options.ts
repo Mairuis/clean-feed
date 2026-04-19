@@ -1,7 +1,7 @@
 import { getOptionalPermissionOrigin } from "./lib/provider";
-import { activeRuleCount, formatDuration } from "./lib/rules";
+import { activeRuleCount } from "./lib/rules";
 import { getAiStatus, getSecrets, getSettings, saveSettings } from "./lib/storage";
-import type { AiStatus, CleanFeedSettings } from "./lib/types";
+import type { CleanFeedSettings } from "./lib/types";
 
 const connectionDialog = document.querySelector<HTMLDialogElement>("#connectionDialog");
 const openConnectionButton = document.querySelector<HTMLButtonElement>("#openConnection");
@@ -14,19 +14,31 @@ const saveAiButton = document.querySelector<HTMLButtonElement>("#saveAi");
 const testAiButton = document.querySelector<HTMLButtonElement>("#testAi");
 const generateConfigButton = document.querySelector<HTMLButtonElement>("#generateConfig");
 const connectionState = document.querySelector<HTMLElement>("#connectionState");
-const rulesCount = document.querySelector<HTMLElement>("#rulesCount");
-const aiState = document.querySelector<HTMLElement>("#aiState");
-const feedbackState = document.querySelector<HTMLElement>("#feedbackState");
-const generatedSummary = document.querySelector<HTMLElement>("#generatedSummary");
+const apiBaseView = document.querySelector<HTMLElement>("#apiBaseView");
+const aiDot = document.querySelector<HTMLElement>("#aiDot");
 const rulesView = document.querySelector<HTMLElement>("#rulesView");
-const reviewerView = document.querySelector<HTMLElement>("#reviewerView");
+const navRulesCount = document.querySelector<HTMLElement>("#navRulesCount");
+const shortsToggle = document.querySelector<HTMLInputElement>("#shortsToggle");
+const feedbackToggle = document.querySelector<HTMLInputElement>("#feedbackToggle");
 const statusElement = document.querySelector<HTMLElement>("#status");
 
 void init();
 
 async function init() {
+  bindNavigation();
+  bindAiDialog();
+  bindGeneration();
+  bindToggles();
   await render();
+}
 
+function bindNavigation() {
+  document.querySelectorAll<HTMLButtonElement>("[data-section]").forEach((button) => {
+    button.addEventListener("click", () => setSection(button.dataset.section || "ai"));
+  });
+}
+
+function bindAiDialog() {
   openConnectionButton?.addEventListener("click", () => {
     connectionDialog?.showModal();
   });
@@ -38,6 +50,7 @@ async function init() {
   saveAiButton?.addEventListener("click", async () => {
     await saveAiConfigFromForm();
     connectionDialog?.close();
+    await render();
   });
 
   testAiButton?.addEventListener("click", async () => {
@@ -45,11 +58,34 @@ async function init() {
     await sendBackgroundMessage({ type: "cleanfeed:test-ai" });
     await render();
   });
+}
 
+function bindGeneration() {
   generateConfigButton?.addEventListener("click", async () => {
     await saveAiConfigFromForm();
     const brief = userBrief?.value.trim() || "";
     await sendBackgroundMessage({ type: "cleanfeed:generate-config", brief });
+    setSection("rules");
+    await render();
+  });
+}
+
+function bindToggles() {
+  shortsToggle?.addEventListener("change", async () => {
+    const settings = await getSettings();
+    await saveSettings({ ...settings, shorts: { enabled: shortsToggle.checked } });
+    await render();
+  });
+
+  feedbackToggle?.addEventListener("change", async () => {
+    const settings = await getSettings();
+    await saveSettings({
+      ...settings,
+      feedback: {
+        ...settings.feedback,
+        enabled: feedbackToggle.checked
+      }
+    });
     await render();
   });
 }
@@ -70,7 +106,7 @@ async function render() {
     apiKey.placeholder = secrets.aiApiKey ? "已保存，留空则继续使用当前 Key" : "sk-...";
   }
 
-  if (userBrief) {
+  if (userBrief && document.activeElement !== userBrief) {
     userBrief.value = settings.ai.userBrief;
   }
 
@@ -78,19 +114,25 @@ async function render() {
     connectionState.textContent = `${formatProviderLabel(settings.ai.apiBase)} · ${formatModelLabel(settings.ai.model)}`;
   }
 
-  if (rulesCount) {
-    rulesCount.textContent = String(activeRuleCount(settings.rules));
+  if (apiBaseView) {
+    apiBaseView.textContent = settings.ai.apiBase;
   }
 
-  if (aiState) {
-    aiState.textContent = formatAiState(settings.ai.enabled, aiStatus.state);
+  if (aiDot) {
+    aiDot.classList.toggle("is-ready", settings.ai.enabled && aiStatus.state !== "error");
   }
 
-  if (feedbackState) {
-    feedbackState.textContent = "AUTO";
+  if (shortsToggle) {
+    shortsToggle.checked = settings.shorts.enabled;
+    shortsToggle.closest(".scope-row")?.classList.toggle("is-on", settings.shorts.enabled);
   }
 
-  renderGeneratedConfig(settings);
+  if (feedbackToggle) {
+    feedbackToggle.checked = settings.feedback.enabled;
+    feedbackToggle.closest(".scope-row")?.classList.toggle("is-on", settings.feedback.enabled);
+  }
+
+  renderRules(settings);
   setStatus(settings.ai.enabled ? aiStatus.message : "AI 未连接");
 }
 
@@ -114,12 +156,7 @@ async function saveAiConfigFromForm() {
 
   await saveSettings({
     ...current,
-    ai: nextAi,
-    feedback: {
-      ...current.feedback,
-      enabled: true,
-      preferredAction: "not_interested"
-    }
+    ai: nextAi
   });
 
   setStatus("AI 连接配置已保存");
@@ -145,35 +182,44 @@ async function requestApiBasePermission(base: string) {
   });
 }
 
-function renderGeneratedConfig(settings: CleanFeedSettings) {
-  if (generatedSummary) {
-    generatedSummary.textContent = settings.ai.generatedSummary;
+function renderRules(settings: CleanFeedSettings) {
+  if (navRulesCount) {
+    navRulesCount.textContent = String(activeRuleCount(settings.rules));
   }
 
-  if (rulesView) {
-    rulesView.replaceChildren(
-      ...settings.rules.map((rule) => {
-        const element = document.createElement("div");
-        element.className = "rule-card";
-
-        const title = document.createElement("strong");
-        title.textContent = rule.label;
-
-        const detail = document.createElement("span");
-        detail.textContent =
-          rule.type === "keyword"
-            ? `屏蔽词：${rule.value}`
-            : `短于 ${formatDuration(rule.thresholdSeconds)} 的视频`;
-
-        element.append(title, detail);
-        return element;
-      })
-    );
+  if (!rulesView) {
+    return;
   }
 
-  if (reviewerView) {
-    reviewerView.textContent = settings.ai.reviewerInstruction;
+  const rows = settings.rules.map((rule) => {
+    const row = document.createElement("div");
+    row.className = "rule-row";
+
+    const kind = document.createElement("span");
+    kind.className = "rule-kind";
+    kind.textContent = "REGEX";
+
+    const explanation = document.createElement("span");
+    explanation.className = "rule-explanation";
+    explanation.textContent = rule.explanation;
+
+    const pattern = document.createElement("code");
+    pattern.className = "rule-pattern";
+    pattern.textContent = rule.pattern;
+
+    row.append(kind, explanation, pattern);
+    return row;
+  });
+
+  if (rows.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "rule-row";
+    empty.textContent = "还没有规则";
+    rulesView.replaceChildren(empty);
+    return;
   }
+
+  rulesView.replaceChildren(...rows);
 }
 
 async function sendBackgroundMessage(message: Record<string, unknown>) {
@@ -202,6 +248,16 @@ function setBusy(isBusy: boolean) {
   });
 }
 
+function setSection(section: string) {
+  document.querySelectorAll<HTMLElement>("[data-section-panel]").forEach((panel) => {
+    panel.classList.toggle("is-active", panel.dataset.sectionPanel === section);
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-section]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.section === section);
+  });
+}
+
 function setStatus(message: string) {
   if (statusElement) {
     statusElement.textContent = message;
@@ -227,21 +283,4 @@ function formatModelLabel(modelValue: string): string {
   }
 
   return modelValue;
-}
-
-function formatAiState(isEnabled: boolean, state: AiStatus["state"]): string {
-  if (!isEnabled) {
-    return "OFF";
-  }
-
-  switch (state) {
-    case "ready":
-      return "READY";
-    case "working":
-      return "RUN";
-    case "error":
-      return "ERR";
-    default:
-      return "ON";
-  }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyProgrammaticRules, parseDuration } from "./rules";
+import { applyProgrammaticRules, buildVideoRuleText, parseDuration } from "./rules";
 import type { CleanFeedRule, VideoCandidate } from "./types";
 
 describe("parseDuration", () => {
@@ -21,29 +21,29 @@ describe("applyProgrammaticRules", () => {
     durationSeconds: 1800
   };
 
-  it("matches keyword rules case-insensitively across title and channel", () => {
+  it("matches regex rules against the extracted video text", () => {
     const rules: CleanFeedRule[] = [
       {
-        id: "keyword",
-        type: "keyword",
+        id: "regex",
+        type: "regex",
         enabled: true,
-        label: "Block pranks",
-        value: "typescript, prank",
+        explanation: "Block TypeScript",
+        pattern: "typescript",
         source: "ai"
       }
     ];
 
-    expect(applyProgrammaticRules(baseCandidate, rules)?.ruleId).toBe("keyword");
+    expect(applyProgrammaticRules(baseCandidate, rules)?.ruleId).toBe("regex");
   });
 
-  it("does not apply disabled keyword rules", () => {
+  it("does not apply disabled regex rules", () => {
     const rules: CleanFeedRule[] = [
       {
-        id: "keyword",
-        type: "keyword",
+        id: "regex",
+        type: "regex",
         enabled: false,
-        label: "Block TypeScript",
-        value: "typescript",
+        explanation: "Block TypeScript",
+        pattern: "typescript",
         source: "ai"
       }
     ];
@@ -51,35 +51,42 @@ describe("applyProgrammaticRules", () => {
     expect(applyProgrammaticRules(baseCandidate, rules)).toBeNull();
   });
 
-  it("hides videos shorter than threshold, but not equal threshold", () => {
+  it("exposes special duration markers for regex rules", () => {
     const rules: CleanFeedRule[] = [
       {
-        id: "duration",
-        type: "duration",
+        id: "duration-marker",
+        type: "regex",
         enabled: true,
-        label: "Block short videos",
-        thresholdSeconds: 60,
+        explanation: "Block videos under 60 seconds",
+        pattern: "§DURATION_LT_60",
         source: "ai"
       }
     ];
 
-    expect(applyProgrammaticRules({ ...baseCandidate, durationSeconds: 59 }, rules)?.ruleId).toBe("duration");
+    expect(applyProgrammaticRules({ ...baseCandidate, durationSeconds: 59 }, rules)?.ruleId).toBe("duration-marker");
     expect(applyProgrammaticRules({ ...baseCandidate, durationSeconds: 60 }, rules)).toBeNull();
   });
 
-  it("does not hide duration-less videos with duration rules", () => {
+  it("does not throw on invalid regex patterns", () => {
     const rules: CleanFeedRule[] = [
       {
-        id: "duration",
-        type: "duration",
+        id: "bad-regex",
+        type: "regex",
         enabled: true,
-        label: "Block short videos",
-        thresholdSeconds: 60,
+        explanation: "Broken",
+        pattern: "[",
         source: "ai"
       }
     ];
 
-    const { durationSeconds: _durationSeconds, ...durationlessCandidate } = baseCandidate;
-    expect(applyProgrammaticRules(durationlessCandidate, rules)).toBeNull();
+    expect(applyProgrammaticRules(baseCandidate, rules)).toBeNull();
+  });
+
+  it("builds a stable text form with metadata markers", () => {
+    const text = buildVideoRuleText({ ...baseCandidate, durationSeconds: 59, durationText: "0:59" });
+    expect(text).toContain("§SITE=youtube");
+    expect(text).toContain("§TITLE=Deep TypeScript Tutorial");
+    expect(text).toContain("§DURATION_SECONDS=59");
+    expect(text).toContain("§DURATION_LT_60");
   });
 });

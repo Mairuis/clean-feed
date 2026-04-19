@@ -32,22 +32,12 @@ const reviewOutputSchema = z.object({
 });
 
 const generatedConfigSchema = z.object({
-  summary: z.string().max(500),
-  reviewerInstruction: z.string().max(1200),
   rules: z
     .array(
-      z.discriminatedUnion("type", [
-        z.object({
-          type: z.literal("keyword"),
-          label: z.string().max(120),
-          value: z.string().max(120)
-        }),
-        z.object({
-          type: z.literal("duration"),
-          label: z.string().max(120),
-          thresholdSeconds: z.number().int().min(1).max(24 * 60 * 60)
-        })
-      ])
+      z.object({
+        explanation: z.string().min(1).max(240),
+        regex: z.string().min(1).max(500)
+      })
     )
 });
 
@@ -145,15 +135,24 @@ async function generateConfig(brief: string) {
     model,
     output: Output.object({ schema: generatedConfigSchema }),
     system:
-      "You generate browser extension filtering configuration. Produce practical rules from the user's preference. Keep keyword rules precise. Use duration rules for short-form attention traps. The LLM reviewer must be conservative: uncertain content should stay visible. Return JSON only. Do not wrap it in markdown or code fences.",
+      "You generate browser extension regex filtering rules. Each rule must contain only an explanation and a JavaScript-compatible regular expression. Return JSON only. Do not wrap it in markdown or code fences.",
     prompt: [
       "User preference:",
       safeBrief,
       "",
-      "Return a JSON object with summary, reviewerInstruction, and rules.",
-      "Allowed rules: keyword substring match against title/channel, and duration threshold in seconds.",
-      "Do not add broad keywords that would hide high-quality educational content.",
-      "Keep rules to 16 items or fewer."
+      "Return a JSON object: {\"rules\":[{\"explanation\":\"...\",\"regex\":\"...\"}]}",
+      "The regex runs against text extracted from each video card.",
+      "Available metadata markers include:",
+      "§SITE=youtube or §SITE=bilibili",
+      "§TITLE=<video title>",
+      "§CHANNEL=<channel name>",
+      "§URL=<url>",
+      "§DURATION=<display duration>",
+      "§DURATION_SECONDS=<seconds>",
+      "§DURATION_LT_60, §DURATION_LT_90, §DURATION_LT_180, §DURATION_LT_300",
+      "§TEXT=<title channel duration>",
+      "Do not add broad rules that would hide high-quality educational content.",
+      "Keep rules to 16 items or fewer. Use plain regex text without leading/trailing slashes."
     ].join("\n")
   });
 
@@ -162,23 +161,12 @@ async function generateConfig(brief: string) {
   const generatedRules = output.rules.slice(0, 16).map<CleanFeedRule>((rule, index) => {
     const id = `ai-${timestamp}-${index}`;
 
-    if (rule.type === "keyword") {
-      return {
-        id,
-        type: "keyword",
-        enabled: true,
-        label: rule.label,
-        value: rule.value,
-        source: "ai"
-      };
-    }
-
     return {
       id,
-      type: "duration",
+      type: "regex",
       enabled: true,
-      label: rule.label,
-      thresholdSeconds: rule.thresholdSeconds,
+      explanation: rule.explanation,
+      pattern: rule.regex,
       source: "ai"
     };
   });
@@ -190,8 +178,7 @@ async function generateConfig(brief: string) {
       ...settings.ai,
       enabled: true,
       userBrief: safeBrief,
-      generatedSummary: output.summary,
-      reviewerInstruction: output.reviewerInstruction,
+      generatedSummary: generatedRules.map((rule) => rule.explanation).join(" / "),
       generatedAt: new Date(timestamp).toISOString()
     }
   };

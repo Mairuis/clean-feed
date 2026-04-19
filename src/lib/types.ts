@@ -2,25 +2,20 @@ export type SiteId = "youtube" | "bilibili";
 
 export type RuleSource = "default" | "ai";
 
-export type KeywordRule = {
+export type RegexRule = {
   id: string;
-  type: "keyword";
+  type: "regex";
   enabled: boolean;
-  label: string;
-  value: string;
+  explanation: string;
+  pattern: string;
   source: RuleSource;
 };
 
-export type DurationRule = {
-  id: string;
-  type: "duration";
-  enabled: boolean;
-  label: string;
-  thresholdSeconds: number;
-  source: RuleSource;
-};
+export type CleanFeedRule = RegexRule;
 
-export type CleanFeedRule = KeywordRule | DurationRule;
+export type ShortsSettings = {
+  enabled: boolean;
+};
 
 export type AiSettings = {
   enabled: boolean;
@@ -43,6 +38,7 @@ export type PlatformFeedbackSettings = {
 export type CleanFeedSettings = {
   enabled: boolean;
   rules: CleanFeedRule[];
+  shorts: ShortsSettings;
   ai: AiSettings;
   feedback: PlatformFeedbackSettings;
 };

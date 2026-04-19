@@ -1,6 +1,6 @@
 import { applyProgrammaticRules, createVideoCacheKey, parseDuration } from "./lib/rules";
 import { getSettings } from "./lib/storage";
-import type { AiReviewResult, CleanFeedSettings, SiteId, VideoCandidate } from "./lib/types";
+import type { CleanFeedSettings, SiteId, VideoCandidate } from "./lib/types";
 
 const YOUTUBE_VIDEO_SELECTOR = [
   "ytd-rich-item-renderer",
@@ -34,10 +34,6 @@ let settings: CleanFeedSettings | null = null;
 let observer: MutationObserver | null = null;
 let scanQueued = false;
 let lastUrl = location.href;
-let aiQueue = new Map<string, VideoCandidate>();
-let pendingAiKeys = new Set<string>();
-let aiResults = new Map<string, AiReviewResult>();
-let aiFlushTimer: number | undefined;
 let feedbackQueue: FeedbackQueueItem[] = [];
 let feedbackQueuedKeys = new Set<string>();
 let feedbackAttemptedKeys = new Set<string>();
@@ -144,16 +140,15 @@ function scanPage() {
     return;
   }
 
-  if (location.pathname.startsWith("/shorts")) {
+  if (settings.shorts.enabled && location.pathname.startsWith("/shorts")) {
     location.replace("/feed/subscriptions");
     return;
   }
 
   const cards = collectCandidates();
-  queueAiReview(cards.map((card) => card.candidate));
 
   cards.forEach(({ element, candidate }) => {
-    if (isYouTubeShortsElement(element)) {
+    if (settings?.shorts.enabled && isYouTubeShortsElement(element)) {
       hideElement(element, candidate, "platform-shorts", "Shorts");
       return;
     }
@@ -164,10 +159,6 @@ function scanPage() {
       return;
     }
 
-    const aiResult = aiResults.get(candidate.key);
-    if (aiResult?.verdict === "low_quality") {
-      hideElement(element, candidate, "ai", aiResult.reason);
-    }
   });
 }
 
@@ -281,60 +272,6 @@ function extractBilibiliCandidate(element: HTMLElement): Omit<VideoCandidate, "k
   };
 }
 
-function queueAiReview(candidates: VideoCandidate[]) {
-  if (!settings?.enabled || !settings.ai.enabled || candidates.length === 0) {
-    return;
-  }
-
-  candidates.forEach((candidate) => {
-    if (!pendingAiKeys.has(candidate.key) && !aiResults.has(candidate.key)) {
-      aiQueue.set(candidate.key, candidate);
-    }
-  });
-
-  if (aiQueue.size === 0 || aiFlushTimer !== undefined) {
-    return;
-  }
-
-  aiFlushTimer = window.setTimeout(flushAiQueue, 350);
-}
-
-async function flushAiQueue() {
-  aiFlushTimer = undefined;
-  const batch = [...aiQueue.values()].slice(0, 8);
-
-  batch.forEach((candidate) => {
-    aiQueue.delete(candidate.key);
-    pendingAiKeys.add(candidate.key);
-  });
-
-  if (batch.length === 0) {
-    return;
-  }
-
-  try {
-    const response = await chrome.runtime.sendMessage({
-      type: "cleanfeed:analyze-videos",
-      candidates: batch
-    });
-
-    if (response?.ok && Array.isArray(response.payload?.results)) {
-      response.payload.results.forEach((result: AiReviewResult) => {
-        aiResults.set(result.key, result);
-      });
-      scanPage();
-    }
-  } catch {
-    // AI filtering is best-effort. Programmatic rules continue to work.
-  } finally {
-    batch.forEach((candidate) => pendingAiKeys.delete(candidate.key));
-  }
-
-  if (aiQueue.size > 0) {
-    aiFlushTimer = window.setTimeout(flushAiQueue, 700);
-  }
-}
-
 function applyRootClasses() {
   const root = document.documentElement;
   if (!root || !settings) {
@@ -342,7 +279,7 @@ function applyRootClasses() {
   }
 
   root.classList.toggle("cleanfeed-enabled", settings.enabled);
-  root.classList.toggle("cleanfeed-hide-shorts", settings.enabled);
+  root.classList.toggle("cleanfeed-hide-shorts", settings.enabled && settings.shorts.enabled);
   root.classList.add("cleanfeed-ready");
 }
 

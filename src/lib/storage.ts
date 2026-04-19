@@ -71,6 +71,10 @@ export function normalizeSettings(input?: StoredShape["settings"]): CleanFeedSet
       ...DEFAULT_SETTINGS.ai,
       ...(input?.ai || {})
     },
+    shorts: {
+      ...DEFAULT_SETTINGS.shorts,
+      ...(input?.shorts || {})
+    },
     feedback: {
       ...DEFAULT_SETTINGS.feedback,
       ...(input?.feedback || {})
@@ -78,12 +82,15 @@ export function normalizeSettings(input?: StoredShape["settings"]): CleanFeedSet
   };
 
   const migratedRules = Array.isArray(input?.rules)
-    ? input.rules
+    ? normalizeStoredRules(input.rules as unknown[])
     : migrateLegacyKeywordRules(input?.blockedKeywords);
 
   const normalized: CleanFeedSettings = {
     enabled: merged.enabled !== false,
     rules: migratedRules.length > 0 ? migratedRules : DEFAULT_SETTINGS.rules,
+    shorts: {
+      enabled: merged.shorts.enabled !== false
+    },
     ai: {
       enabled: merged.ai.enabled === true,
       apiBase: String(merged.ai.apiBase || DEFAULT_SETTINGS.ai.apiBase),
@@ -93,7 +100,7 @@ export function normalizeSettings(input?: StoredShape["settings"]): CleanFeedSet
       reviewerInstruction: String(merged.ai.reviewerInstruction || DEFAULT_SETTINGS.ai.reviewerInstruction)
     },
     feedback: {
-      enabled: true,
+      enabled: merged.feedback.enabled !== false,
       preferredAction:
         merged.feedback.preferredAction === "dislike" ? "dislike" : DEFAULT_SETTINGS.feedback.preferredAction,
       maxPerSession: normalizeMaxPerSession(merged.feedback.maxPerSession)
@@ -105,6 +112,69 @@ export function normalizeSettings(input?: StoredShape["settings"]): CleanFeedSet
   }
 
   return normalized;
+}
+
+function normalizeStoredRules(rules: unknown[]): CleanFeedSettings["rules"] {
+  return rules
+    .map((rule, index) => {
+      const item = rule as Record<string, unknown>;
+      const id = String(item.id || `rule-${index}`);
+      const enabled = item.enabled !== false;
+      const source = item.source === "default" ? "default" : "ai";
+
+      if (item.type === "regex") {
+        const pattern = String(item.pattern || "").trim();
+        if (!pattern) {
+          return null;
+        }
+
+        return {
+          id,
+          type: "regex" as const,
+          enabled,
+          explanation: String(item.explanation || "正则规则"),
+          pattern,
+          source
+        };
+      }
+
+      if (item.type === "keyword") {
+        const value = String(item.value || "").trim();
+        if (!value) {
+          return null;
+        }
+
+        return {
+          id,
+          type: "regex" as const,
+          enabled,
+          explanation: String(item.label || `屏蔽包含「${value}」的内容`),
+          pattern: value
+            .split(/[\n,，]/)
+            .map((keyword) => escapeRegex(keyword.trim()))
+            .filter(Boolean)
+            .join("|"),
+          source
+        };
+      }
+
+      if (item.type === "duration") {
+        const threshold = Number(item.thresholdSeconds);
+        const marker = threshold <= 60 ? "§DURATION_LT_60" : threshold <= 90 ? "§DURATION_LT_90" : threshold <= 180 ? "§DURATION_LT_180" : "§DURATION_LT_300";
+
+        return {
+          id,
+          type: "regex" as const,
+          enabled,
+          explanation: String(item.label || `屏蔽短于 ${threshold || 300} 秒的视频`),
+          pattern: marker,
+          source
+        };
+      }
+
+      return null;
+    })
+    .filter((rule): rule is CleanFeedSettings["rules"][number] => Boolean(rule));
 }
 
 function normalizeMaxPerSession(value: unknown): number {
@@ -128,12 +198,16 @@ function migrateLegacyKeywordRules(blockedKeywords: string | undefined): CleanFe
 
   return keywords.map((keyword, index) => ({
     id: `legacy-keyword-${index}`,
-    type: "keyword" as const,
+    type: "regex" as const,
     enabled: true,
-    label: `屏蔽包含「${keyword}」的内容`,
-    value: keyword,
+    explanation: `屏蔽包含「${keyword}」的内容`,
+    pattern: escapeRegex(keyword),
     source: "ai" as const
   }));
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function storageGet<T>(area: chrome.storage.StorageArea, keys: string[]): Promise<T> {

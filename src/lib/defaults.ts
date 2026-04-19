@@ -14,14 +14,17 @@ export const DEFAULT_SETTINGS: CleanFeedSettings = {
   enabled: true,
   rules: [
     {
-      id: "default-short-video",
-      type: "duration",
+      id: "default-attention-bait",
+      type: "regex",
       enabled: true,
-      label: "屏蔽 60 秒以内的视频",
-      thresholdSeconds: 60,
+      explanation: "标题党、震惊体、低质娱乐和重复搬运内容",
+      pattern: "(震惊|必看|速看|爽文|吃瓜|八卦|搬运|reaction|prank|drama|clickbait)",
       source: "default"
     }
   ],
+  shorts: {
+    enabled: true
+  },
   ai: {
     enabled: false,
     apiBase: DEFAULT_AI_BASE,
