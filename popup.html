@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Clean Feed</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="panel">
+      <header class="header">
+        <h1>Clean Feed</h1>
+        <p>还我一个干净的信息流</p>
+      </header>
+
+      <section class="status-grid" aria-label="状态">
+        <label class="row">
+          <span>
+            <strong>启用净化</strong>
+            <small id="enabled-label">读取设置中...</small>
+          </span>
+          <input id="enabled" type="checkbox">
+        </label>
+
+        <div class="metric">
+          <span>程序化规则</span>
+          <strong id="rules-count">-</strong>
+        </div>
+
+        <div class="metric">
+          <span>AI 后置判断</span>
+          <strong id="ai-state">-</strong>
+        </div>
+      </section>
+
+      <p id="status" class="status-line" role="status">读取设置中...</p>
+
+      <footer>
+        <button id="open-options" type="button">打开设置</button>
+      </footer>
+    </main>
+    <script src="dist/popup.js"></script>
+  </body>
+</html>

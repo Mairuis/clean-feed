@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Clean Feed 设置</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <h1>Clean Feed</h1>
+        <p>告诉 AI 你想要屏蔽什么，Clean Feed 生成快速规则，并用 LLM 后置判断补充过滤。</p>
+      </header>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>AI 连接</h2>
+          <label class="inline-toggle">
+            <span>启用 AI 后置判断</span>
+            <input id="aiEnabled" type="checkbox">
+          </label>
+        </div>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>API Base</span>
+            <input id="apiBase" type="url" spellcheck="false" placeholder="https://api.anthropic.com/v1">
+          </label>
+          <label class="field">
+            <span>Model</span>
+            <input id="model" type="text" spellcheck="false" placeholder="claude-3-5-haiku-latest">
+          </label>
+        </div>
+
+        <label class="field">
+          <span>API Key</span>
+          <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="留空则保留已保存的 Key">
+        </label>
+
+        <div class="actions">
+          <button id="saveAi" type="button">保存连接</button>
+          <button id="testAi" class="secondary" type="button">测试连接</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>平台反馈</h2>
+          <label class="inline-toggle">
+            <span>自动点击反馈</span>
+            <input id="feedbackEnabled" type="checkbox">
+          </label>
+        </div>
+
+        <label class="field">
+          <span>被过滤的视频命中后</span>
+          <select id="feedbackAction">
+            <option value="not_interested">优先点击“不感兴趣”</option>
+            <option value="dislike">优先点击“踩 / 不喜欢”</option>
+          </select>
+        </label>
+
+        <p class="note">仅对已被 Clean Feed 过滤的卡片触发；同一视频本页只尝试一次，找不到对应按钮时会跳过。</p>
+
+        <div class="actions">
+          <button id="saveFeedback" type="button">保存反馈设置</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>描述你想屏蔽的内容</h2>
+        <label class="field">
+          <span>用一段话描述，不需要手动写规则。</span>
+          <textarea id="userBrief" rows="8" spellcheck="true" placeholder="例如：屏蔽短平快、标题党、低质量娱乐八卦、重复搬运和浪费注意力的内容；保留长视频、教程、深度分析、技术和高质量创作。"></textarea>
+        </label>
+        <div class="actions">
+          <button id="generateConfig" type="button">生成配置</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>当前生成配置</h2>
+        <div class="summary" id="generatedSummary">读取设置中...</div>
+        <div class="generated-grid">
+          <div>
+            <h3>程序化规则</h3>
+            <div id="rulesView" class="rule-list"></div>
+          </div>
+          <div>
+            <h3>LLM 后置判断</h3>
+            <div id="reviewerView" class="reviewer-box"></div>
+          </div>
+        </div>
+      </section>
+
+      <p id="status" class="status" role="status">读取设置中...</p>
+    </main>
+    <script src="dist/options.js"></script>
+  </body>
+</html>

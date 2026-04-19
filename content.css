@@ -1,0 +1,69 @@
+[data-cleanfeed-hidden] {
+  filter: blur(12px) saturate(0.55) brightness(0.92);
+  opacity: 0.62;
+  transition:
+    filter 160ms ease,
+    opacity 160ms ease;
+}
+
+[data-cleanfeed-hidden]:hover,
+[data-cleanfeed-hidden]:focus-within {
+  filter: none;
+  opacity: 1;
+}
+
+html.cleanfeed-hide-shorts ytd-rich-shelf-renderer[is-shorts],
+html.cleanfeed-hide-shorts ytd-reel-shelf-renderer,
+html.cleanfeed-hide-shorts ytd-reel-video-renderer,
+html.cleanfeed-hide-shorts ytm-reel-shelf-renderer,
+html.cleanfeed-hide-shorts ytm-shorts-lockup-view-model,
+html.cleanfeed-hide-shorts ytd-rich-section-renderer:has(a[href^="/shorts/"]),
+html.cleanfeed-hide-shorts ytd-shelf-renderer:has(a[href^="/shorts/"]),
+html.cleanfeed-hide-shorts ytd-rich-item-renderer:has(a[href^="/shorts/"]),
+html.cleanfeed-hide-shorts ytd-video-renderer:has(a[href^="/shorts/"]),
+html.cleanfeed-hide-shorts ytd-grid-video-renderer:has(a[href^="/shorts/"]),
+html.cleanfeed-hide-shorts ytd-compact-video-renderer:has(a[href^="/shorts/"]),
+html.cleanfeed-hide-shorts ytm-rich-item-renderer:has(a[href^="/shorts/"]),
+html.cleanfeed-hide-shorts ytm-video-with-context-renderer:has(a[href^="/shorts/"]) {
+  filter: blur(12px) saturate(0.55) brightness(0.92);
+  opacity: 0.62;
+  transition:
+    filter 160ms ease,
+    opacity 160ms ease;
+}
+
+html.cleanfeed-hide-shorts ytd-rich-shelf-renderer[is-shorts]:hover,
+html.cleanfeed-hide-shorts ytd-reel-shelf-renderer:hover,
+html.cleanfeed-hide-shorts ytd-reel-video-renderer:hover,
+html.cleanfeed-hide-shorts ytm-reel-shelf-renderer:hover,
+html.cleanfeed-hide-shorts ytm-shorts-lockup-view-model:hover,
+html.cleanfeed-hide-shorts ytd-rich-section-renderer:has(a[href^="/shorts/"]):hover,
+html.cleanfeed-hide-shorts ytd-shelf-renderer:has(a[href^="/shorts/"]):hover,
+html.cleanfeed-hide-shorts ytd-rich-item-renderer:has(a[href^="/shorts/"]):hover,
+html.cleanfeed-hide-shorts ytd-video-renderer:has(a[href^="/shorts/"]):hover,
+html.cleanfeed-hide-shorts ytd-grid-video-renderer:has(a[href^="/shorts/"]):hover,
+html.cleanfeed-hide-shorts ytd-compact-video-renderer:has(a[href^="/shorts/"]):hover,
+html.cleanfeed-hide-shorts ytm-rich-item-renderer:has(a[href^="/shorts/"]):hover,
+html.cleanfeed-hide-shorts ytm-video-with-context-renderer:has(a[href^="/shorts/"]):hover,
+html.cleanfeed-hide-shorts ytd-rich-shelf-renderer[is-shorts]:focus-within,
+html.cleanfeed-hide-shorts ytd-reel-shelf-renderer:focus-within,
+html.cleanfeed-hide-shorts ytd-reel-video-renderer:focus-within,
+html.cleanfeed-hide-shorts ytm-reel-shelf-renderer:focus-within,
+html.cleanfeed-hide-shorts ytm-shorts-lockup-view-model:focus-within,
+html.cleanfeed-hide-shorts ytd-rich-section-renderer:has(a[href^="/shorts/"]):focus-within,
+html.cleanfeed-hide-shorts ytd-shelf-renderer:has(a[href^="/shorts/"]):focus-within,
+html.cleanfeed-hide-shorts ytd-rich-item-renderer:has(a[href^="/shorts/"]):focus-within,
+html.cleanfeed-hide-shorts ytd-video-renderer:has(a[href^="/shorts/"]):focus-within,
+html.cleanfeed-hide-shorts ytd-grid-video-renderer:has(a[href^="/shorts/"]):focus-within,
+html.cleanfeed-hide-shorts ytd-compact-video-renderer:has(a[href^="/shorts/"]):focus-within,
+html.cleanfeed-hide-shorts ytm-rich-item-renderer:has(a[href^="/shorts/"]):focus-within,
+html.cleanfeed-hide-shorts ytm-video-with-context-renderer:has(a[href^="/shorts/"]):focus-within {
+  filter: none;
+  opacity: 1;
+}
+
+html.cleanfeed-hide-shorts ytd-guide-entry-renderer:has(a[href^="/shorts"]),
+html.cleanfeed-hide-shorts ytd-mini-guide-entry-renderer:has(a[href^="/shorts"]),
+html.cleanfeed-hide-shorts ytm-pivot-bar-item-renderer:has(a[href^="/shorts"]) {
+  display: none !important;
+}

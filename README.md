@@ -1,0 +1,63 @@
+# Clean Feed
+
+还我一个干净的信息流。
+
+Clean Feed 是一个跨视频网站的信息流净化浏览器扩展。v1 支持 YouTube 和 Bilibili，使用两层并发过滤：
+
+- 程序化规则：由 AI 根据用户的一段描述生成，立即模糊屏蔽词和短时长视频。
+- LLM 后置判断：页面先显示，后台用标题、频道和时长判断内容质量，低质量内容回来后再模糊。
+
+被过滤的视频不会从信息流里消失，而是整块卡片高斯模糊；鼠标悬停或键盘聚焦时会恢复原内容。
+
+可选开启“平台反馈”：对已经被 Clean Feed 过滤的卡片，自动尝试点击“不感兴趣”或“踩 / 不喜欢”，帮助推荐算法减少同类内容。这个功能默认关闭，并且同一视频在当前页面只会尝试一次。
+
+用户不需要手动编辑规则，只需要描述想屏蔽的内容，然后查看 AI 生成的配置。
+
+## 安装
+
+### Chrome / Edge / Brave
+
+1. 进入目录并构建：
+
+```bash
+cd /Users/harry/Project/Github/clean-feed
+pnpm install
+pnpm run build
+```
+
+2. 打开扩展管理页：
+   - Chrome：`chrome://extensions`
+   - Edge：`edge://extensions`
+   - Brave：`brave://extensions`
+3. 打开“开发者模式”。
+4. 选择“加载已解压的扩展程序”。
+5. 选择这个目录：
+
+```text
+/Users/harry/Project/Github/clean-feed
+```
+
+## 使用
+
+1. 打开扩展设置页。
+2. 填入 API Base、API Key 和 Model。
+3. 用自然语言描述想屏蔽的内容。
+4. 点击“生成配置”。
+5. 可选开启“平台反馈”，选择优先点击“不感兴趣”或“踩 / 不喜欢”。
+6. 查看生成的程序化规则和 LLM 后置判断策略。
+
+API Key 存在 `chrome.storage.local`，不会进入浏览器同步存储。
+
+## 开发
+
+```bash
+pnpm install
+pnpm run test
+pnpm run build
+```
+
+构建产物在 `dist/`，扩展入口仍是项目根目录的 `manifest.json`。
+
+## License
+
+MIT
