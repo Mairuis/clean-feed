@@ -115,10 +115,6 @@ export function FirstRunFlow({
   return (
     <div className="first-run-flow noise">
       <div className="dawn-bg" />
-      <div className="first-run-layers" aria-hidden="true">
-        <div />
-        <div />
-      </div>
 
       <div className="first-run-content">
         <div className="first-run-top">
