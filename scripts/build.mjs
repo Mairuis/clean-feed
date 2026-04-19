@@ -1,7 +1,10 @@
 import esbuild from "esbuild";
-import { rm } from "node:fs/promises";
+import { cp, mkdir, rm } from "node:fs/promises";
+
+const releaseDir = "release/clean-feed";
 
 await rm("dist", { force: true, recursive: true });
+await rm("release", { force: true, recursive: true });
 
 await esbuild.build({
   entryPoints: {
@@ -16,9 +19,22 @@ await esbuild.build({
   format: "iife",
   platform: "browser",
   target: ["chrome121"],
-  sourcemap: true,
+  minify: true,
+  sourcemap: false,
   legalComments: "none",
   define: {
     "process.env.NODE_ENV": "\"production\""
   }
 });
+
+await mkdir(releaseDir, { recursive: true });
+
+await Promise.all([
+  cp("manifest.json", `${releaseDir}/manifest.json`),
+  cp("content.css", `${releaseDir}/content.css`),
+  cp("popup.css", `${releaseDir}/popup.css`),
+  cp("popup.html", `${releaseDir}/popup.html`),
+  cp("options.css", `${releaseDir}/options.css`),
+  cp("options.html", `${releaseDir}/options.html`),
+  cp("dist", `${releaseDir}/dist`, { recursive: true })
+]);

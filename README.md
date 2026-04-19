@@ -15,9 +15,9 @@ Clean Feed 是一个跨视频网站的信息流净化浏览器扩展。v1 支持
 
 ## 安装
 
-### Chrome / Edge / Brave
+### Chrome / Edge / Brave 开发者模式安装
 
-1. 进入目录并构建：
+1. 进入项目目录并构建：
 
 ```bash
 cd /Users/harry/Projects/clean-feed
@@ -34,7 +34,20 @@ pnpm run build
 5. 选择这个目录：
 
 ```text
-/Users/harry/Projects/clean-feed
+/Users/harry/Projects/clean-feed/release/clean-feed
+```
+
+不要选择 `dist/`。`dist/` 只包含编译后的 JavaScript，没有 `manifest.json`，浏览器会报 “Manifest file is missing or unreadable”。
+
+### 生产分发包
+
+构建后使用 `release/clean-feed` 作为完整可安装扩展目录，根目录包含 `manifest.json`。
+
+如果要分发 zip，从 `release/clean-feed` 目录内部打包，保证 zip 根目录就是 `manifest.json`：
+
+```bash
+cd /Users/harry/Projects/clean-feed/release/clean-feed
+zip -r /Users/harry/Projects/clean-feed.zip .
 ```
 
 ## 使用
@@ -56,7 +69,7 @@ pnpm run test
 pnpm run build
 ```
 
-构建产物在 `dist/`，扩展入口仍是项目根目录的 `manifest.json`。
+源码在 `src/`，编译产物在 `dist/`，可直接安装的扩展目录在 `release/clean-feed/`。
 
 ## License
 

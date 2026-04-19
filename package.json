@@ -8,7 +8,7 @@
     "build": "node scripts/build.mjs",
     "check": "tsc --noEmit",
     "test": "vitest run",
-    "validate": "npm run check && npm run test && npm run build && node scripts/validate-manifest.mjs"
+    "validate": "npm run check && npm run test && npm run build && node scripts/validate-manifest.mjs && node scripts/validate-manifest.mjs release/clean-feed/manifest.json"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.71",
