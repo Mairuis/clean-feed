@@ -20,7 +20,7 @@ Clean Feed 是一个跨视频网站的信息流净化浏览器扩展。v1 支持
 1. 进入目录并构建：
 
 ```bash
-cd /Users/harry/Project/Github/clean-feed
+cd /Users/harry/Projects/clean-feed
 pnpm install
 pnpm run build
 ```
@@ -34,7 +34,7 @@ pnpm run build
 5. 选择这个目录：
 
 ```text
-/Users/harry/Project/Github/clean-feed
+/Users/harry/Projects/clean-feed
 ```
 
 ## 使用
