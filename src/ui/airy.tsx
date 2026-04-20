@@ -438,28 +438,12 @@ function HomeView({
     <>
       <div className="glass hero-card">
         <div className="hero-line">
+          <span>规则</span>
           <strong>{ruleCount}</strong>
-          <span>条正则规则</span>
           <span className="llm-pill">
             <i />
             {enabled ? formatAiState(aiState) : "PAUSED"}
           </span>
-        </div>
-        <div className="breakdown" aria-hidden="true">
-          <span style={{ width: "55%" }} />
-          <span style={{ width: "30%" }} />
-          <span style={{ width: "15%" }} />
-        </div>
-        <div className="legend">
-          <Tip text="正则规则立即运行">
-            <span>● Regex</span>
-          </Tip>
-          <Tip text="平台反馈自动执行">
-            <span>● Feedback</span>
-          </Tip>
-          <Tip text="Shorts / B 站短视频">
-            <span>● Shorts</span>
-          </Tip>
         </div>
       </div>
 
