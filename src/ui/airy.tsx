@@ -62,6 +62,7 @@ type AirySettingsProps = {
   onResetOnboarding: () => Promise<void>;
   onSaveAiConfig: (draft: AiConnectionDraft) => Promise<void>;
   onTestAiConnection: (draft: AiConnectionDraft) => Promise<void>;
+  onUpdateShortsThreshold: (thresholdSeconds: number) => Promise<void>;
   onToggleFeedback: (enabled: boolean) => Promise<void>;
   onToggleShorts: (enabled: boolean) => Promise<void>;
 };
@@ -327,6 +328,7 @@ export function AirySettings({
   onResetOnboarding,
   onSaveAiConfig,
   onTestAiConnection,
+  onUpdateShortsThreshold,
   onToggleFeedback,
   onToggleShorts
 }: AirySettingsProps) {
@@ -381,7 +383,12 @@ export function AirySettings({
           ) : null}
           {section === "rules" ? <RulesSection rules={settings.rules} /> : null}
           {section === "scope" ? (
-            <ScopeSection settings={settings} onToggleFeedback={onToggleFeedback} onToggleShorts={onToggleShorts} />
+            <ScopeSection
+              settings={settings}
+              onToggleFeedback={onToggleFeedback}
+              onToggleShorts={onToggleShorts}
+              onUpdateShortsThreshold={onUpdateShortsThreshold}
+            />
           ) : null}
           {section === "history" ? <HistorySection aiAuditLog={aiAuditLog} /> : null}
           {section === "export" ? <ExportSection /> : null}
@@ -671,11 +678,13 @@ function RulesSection({ rules }: { rules: CleanFeedRule[] }) {
 function ScopeSection({
   settings,
   onToggleFeedback,
-  onToggleShorts
+  onToggleShorts,
+  onUpdateShortsThreshold
 }: {
   settings: CleanFeedSettings;
   onToggleFeedback: (enabled: boolean) => Promise<void>;
   onToggleShorts: (enabled: boolean) => Promise<void>;
+  onUpdateShortsThreshold: (thresholdSeconds: number) => Promise<void>;
 }) {
   return (
     <>
@@ -687,6 +696,11 @@ function ScopeSection({
           icon={<IconVideo size={18} />}
           title="屏蔽短视频"
           onChange={onToggleShorts}
+        />
+        <ThresholdRow
+          disabled={!settings.shorts.enabled}
+          seconds={settings.shorts.thresholdSeconds}
+          onChange={onUpdateShortsThreshold}
         />
         <ScopeRow
           checked={settings.feedback.enabled}
@@ -1119,6 +1133,46 @@ function ScopeRow({
   );
 }
 
+function ThresholdRow({
+  disabled,
+  onChange,
+  seconds
+}: {
+  disabled: boolean;
+  onChange: (seconds: number) => Promise<void>;
+  seconds: number;
+}) {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+
+  return (
+    <div className={`scope-row glass-thin threshold-row${disabled ? " is-disabled" : ""}`}>
+      <span>
+        <IconClock size={18} />
+      </span>
+      <div>
+        <strong>短视频阈值</strong>
+        <small>低于这个时长会被当作短视频</small>
+      </div>
+      <input
+        aria-label="短视频阈值，单位分钟"
+        className="threshold-input"
+        disabled={disabled}
+        max={60}
+        min={1}
+        type="number"
+        value={minutes}
+        onChange={(event) => {
+          const nextMinutes = Number(event.currentTarget.value);
+          if (Number.isFinite(nextMinutes)) {
+            void onChange(Math.min(60, Math.max(1, Math.floor(nextMinutes))) * 60);
+          }
+        }}
+      />
+      <em>分钟</em>
+    </div>
+  );
+}
+
 function SiteRow({ domain, hits, name }: { domain: string; hits: string; name: string }) {
   return (
     <div className="scope-row glass-thin">
@@ -1363,6 +1417,15 @@ function IconVideo(props: IconProps) {
     <Svg {...props}>
       <rect x="3" y="6" width="14" height="12" rx="1" />
       <path d="M17 10l4-2v8l-4-2" />
+    </Svg>
+  );
+}
+
+function IconClock(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 8v5l3 2" />
     </Svg>
   );
 }

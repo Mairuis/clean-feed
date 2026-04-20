@@ -512,6 +512,29 @@ body {
   font-style: normal;
 }
 
+.scope-row.is-disabled {
+  opacity: 0.62;
+}
+
+.threshold-input {
+  width: 64px;
+  height: 32px;
+  border: 1px solid rgba(255,255,255,0.85);
+  border-radius: 8px;
+  outline: none;
+  background: rgba(255,255,255,0.45);
+  color: var(--ink-900);
+  font-family: var(--font-en);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: center;
+}
+
+.threshold-input:focus {
+  border-color: rgba(123,161,146,0.75);
+  box-shadow: 0 0 0 3px rgba(123,161,146,0.14);
+}
+
 .site-avatar {
   font-family: var(--font-en);
   font-size: 11px;

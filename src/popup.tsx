@@ -237,7 +237,15 @@ function PopupApp() {
           }
         }))
       }
-      onToggleShorts={(enabled) => void updateSettings((current) => ({ ...current, shorts: { enabled } }))}
+      onToggleShorts={(enabled) =>
+        void updateSettings((current) => ({
+          ...current,
+          shorts: {
+            ...current.shorts,
+            enabled
+          }
+        }))
+      }
       onViewChange={setView}
     />
   );

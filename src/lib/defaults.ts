@@ -3,6 +3,7 @@ import type { AiStatus, CleanFeedSettings } from "./types";
 export const DEFAULT_AI_BASE = "https://openrouter.ai/api/v1";
 export const DEFAULT_AI_MODEL = "anthropic/claude-haiku-4-5";
 export const AI_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const DEFAULT_SHORTS_THRESHOLD_SECONDS = 5 * 60;
 
 export const DEFAULT_USER_BRIEF =
   "屏蔽短平快、标题党、低质量娱乐八卦、重复搬运和浪费注意力的内容；保留长视频、教程、深度分析、技术和高质量创作。";
@@ -31,7 +32,8 @@ export const DEFAULT_SETTINGS: CleanFeedSettings = {
     }
   ],
   shorts: {
-    enabled: true
+    enabled: true,
+    thresholdSeconds: DEFAULT_SHORTS_THRESHOLD_SECONDS
   },
   ai: {
     enabled: false,

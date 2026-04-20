@@ -15,6 +15,7 @@ export type CleanFeedRule = RegexRule;
 
 export type ShortsSettings = {
   enabled: boolean;
+  thresholdSeconds: number;
 };
 
 export type AiSettings = {

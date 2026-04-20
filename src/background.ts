@@ -196,6 +196,7 @@ async function generateConfig(brief: string) {
     "Allow rules are whitelist rules and always win over block rules and LLM review.",
     "Always include an allow rule for followed or subscribed creators using words like 已关注, 已订阅, Subscribed, Following.",
     "Block rules are blacklist rules that blur matching cards.",
+    "Do not generate short-duration block rules. Videos under the user's short-video threshold are handled by the separate Shorts switch.",
     "Available metadata markers include:",
     "§SITE=youtube or §SITE=bilibili",
     "§TITLE=<video title>",

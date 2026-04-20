@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyProgrammaticRules, buildVideoRuleText, parseDuration } from "./rules";
+import { applyProgrammaticRules, buildVideoRuleText, isShortDurationVideo, parseDuration } from "./rules";
 import type { CleanFeedRule, VideoCandidate } from "./types";
 
 describe("parseDuration", () => {
@@ -158,5 +158,27 @@ describe("applyProgrammaticRules", () => {
     expect(longText).toContain("§DURATION_GTE_20_MIN");
     expect(longText).toContain("§DURATION_GTE_30_MIN");
     expect(longText).not.toContain("§DURATION_GT_30_MIN");
+  });
+});
+
+describe("isShortDurationVideo", () => {
+  const candidate: VideoCandidate = {
+    key: "k",
+    site: "bilibili",
+    url: "https://www.bilibili.com/video/BV1",
+    title: "Short clip",
+    channel: "UP",
+    durationSeconds: 299
+  };
+
+  it("treats videos below the configured threshold as shorts", () => {
+    expect(isShortDurationVideo(candidate, { enabled: true, thresholdSeconds: 300 })).toBe(true);
+    expect(isShortDurationVideo({ ...candidate, durationSeconds: 300 }, { enabled: true, thresholdSeconds: 300 })).toBe(false);
+  });
+
+  it("does not hide unknown durations or disabled shorts", () => {
+    const { durationSeconds: _durationSeconds, ...unknownDurationCandidate } = candidate;
+    expect(isShortDurationVideo(unknownDurationCandidate, { enabled: true, thresholdSeconds: 300 })).toBe(false);
+    expect(isShortDurationVideo(candidate, { enabled: false, thresholdSeconds: 300 })).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { DEFAULT_AI_STATUS, DEFAULT_SETTINGS } from "./defaults";
+import { DEFAULT_AI_STATUS, DEFAULT_SETTINGS, DEFAULT_SHORTS_THRESHOLD_SECONDS } from "./defaults";
 import { trimAiAuditLog } from "./cost";
 import type { AiAuditLogEntry, AiCacheEntry, AiStatus, CleanFeedSecrets, CleanFeedSettings, CleanFeedUiState } from "./types";
 
@@ -118,7 +118,8 @@ export function normalizeSettings(input?: StoredShape["settings"]): CleanFeedSet
     enabled: merged.enabled !== false,
     rules: migratedRules.length > 0 ? migratedRules : DEFAULT_SETTINGS.rules,
     shorts: {
-      enabled: merged.shorts.enabled !== false
+      enabled: merged.shorts.enabled !== false,
+      thresholdSeconds: normalizeShortsThreshold(merged.shorts.thresholdSeconds)
     },
     ai: {
       enabled: merged.ai.enabled === true,
@@ -214,6 +215,15 @@ function normalizeMaxPerSession(value: unknown): number {
   }
 
   return Math.min(100, Math.max(1, Math.floor(parsed)));
+}
+
+function normalizeShortsThreshold(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_SHORTS_THRESHOLD_SECONDS;
+  }
+
+  return Math.min(60 * 60, Math.max(30, Math.floor(parsed)));
 }
 
 function migrateLegacyKeywordRules(blockedKeywords: string | undefined): CleanFeedSettings["rules"] {

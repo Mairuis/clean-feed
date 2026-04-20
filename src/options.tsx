@@ -166,11 +166,28 @@ function OptionsApp() {
     const current = await getSettings();
     const nextSettings = {
       ...current,
-      shorts: { enabled }
+      shorts: {
+        ...current.shorts,
+        enabled
+      }
     };
     await saveSettings(nextSettings);
     setSettings(nextSettings);
     setStatus("设置已更新");
+  };
+
+  const updateShortsThreshold = async (thresholdSeconds: number) => {
+    const current = await getSettings();
+    const nextSettings = {
+      ...current,
+      shorts: {
+        ...current.shorts,
+        thresholdSeconds
+      }
+    };
+    await saveSettings(nextSettings);
+    setSettings(nextSettings);
+    setStatus("短视频阈值已更新");
   };
 
   const toggleFeedback = async (enabled: boolean) => {
@@ -233,6 +250,7 @@ function OptionsApp() {
       onResetOnboarding={resetOnboarding}
       onSaveAiConfig={saveAiDraft}
       onTestAiConnection={testAiConnection}
+      onUpdateShortsThreshold={updateShortsThreshold}
       onToggleFeedback={toggleFeedback}
       onToggleShorts={toggleShorts}
     />

@@ -1,4 +1,4 @@
-import type { CleanFeedRule, VideoCandidate } from "./types";
+import type { CleanFeedRule, ShortsSettings, VideoCandidate } from "./types";
 
 const DURATION_MINUTE_THRESHOLDS = [1, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120];
 
@@ -91,6 +91,10 @@ export function applyProgrammaticRules(
 
 export function isAllowRule(rule: CleanFeedRule): boolean {
   return rule.type === "allow_regex";
+}
+
+export function isShortDurationVideo(candidate: VideoCandidate, shorts: ShortsSettings): boolean {
+  return shorts.enabled && candidate.durationSeconds !== undefined && candidate.durationSeconds < shorts.thresholdSeconds;
 }
 
 export function activeRuleCount(rules: CleanFeedRule[]): number {

@@ -1,4 +1,4 @@
-import { applyProgrammaticRules, createVideoCacheKey, parseDuration } from "./lib/rules";
+import { applyProgrammaticRules, createVideoCacheKey, isShortDurationVideo, parseDuration } from "./lib/rules";
 import { getSettings } from "./lib/storage";
 import type { AiReviewResult, CleanFeedSettings, SiteId, VideoCandidate } from "./lib/types";
 
@@ -175,7 +175,12 @@ function scanPage() {
     }
 
     if (settings?.shorts.enabled && isYouTubeShortsElement(element)) {
-      hideElement(element, candidate, "platform-shorts", "Shorts");
+      hideElement(element, candidate, "platform-shorts", "平台短视频");
+      return;
+    }
+
+    if (settings?.shorts.enabled && isShortDurationVideo(candidate, settings.shorts)) {
+      hideElement(element, candidate, "platform-shorts", `短于 ${formatMinutes(settings.shorts.thresholdSeconds)} 分钟`);
       return;
     }
 
@@ -496,7 +501,7 @@ function formatBadgeLabel(source: string, reason: string): string {
   }
 
   if (source === "platform-shorts") {
-    return "SHORTS";
+    return reason ? `SHORTS · ${reason}` : "SHORTS";
   }
 
   return reason || "Clean Feed";
@@ -746,4 +751,9 @@ function detectSite(): SiteId | null {
 
 function cleanText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function formatMinutes(seconds: number): string {
+  const minutes = seconds / 60;
+  return Number.isInteger(minutes) ? String(minutes) : minutes.toFixed(1);
 }
