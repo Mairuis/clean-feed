@@ -14,8 +14,16 @@ export const DEFAULT_SETTINGS: CleanFeedSettings = {
   enabled: true,
   rules: [
     {
+      id: "default-followed-author-allow",
+      type: "allow_regex",
+      enabled: true,
+      explanation: "已关注作者内容直接放行",
+      pattern: "(已关注|已订阅|Subscribed|Following)",
+      source: "default"
+    },
+    {
       id: "default-attention-bait",
-      type: "regex",
+      type: "block_regex",
       enabled: true,
       explanation: "标题党、震惊体、低质娱乐和重复搬运内容",
       pattern: "(震惊|必看|速看|爽文|吃瓜|八卦|搬运|reaction|prank|drama|clickbait)",

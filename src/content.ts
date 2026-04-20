@@ -166,13 +166,20 @@ function scanPage() {
   refreshAiElementIndex(cards);
 
   cards.forEach(({ element, candidate }) => {
+    const match = applyProgrammaticRules(candidate, settings?.rules || []);
+    if (match?.action === "allow") {
+      unhideElement(element);
+      aiPendingCandidates.delete(candidate.key);
+      aiReviewResults.delete(candidate.key);
+      return;
+    }
+
     if (settings?.shorts.enabled && isYouTubeShortsElement(element)) {
       hideElement(element, candidate, "platform-shorts", "Shorts");
       return;
     }
 
-    const match = applyProgrammaticRules(candidate, settings?.rules || []);
-    if (match) {
+    if (match?.action === "block") {
       hideElement(element, candidate, "rule", match.reason);
       return;
     }
@@ -253,6 +260,7 @@ function extractYouTubeCandidate(element: HTMLElement): Omit<VideoCandidate, "ke
   const title = cleanText(titleElement?.textContent || link?.getAttribute("title") || link?.textContent || "");
   const durationText = cleanText(durationElement?.textContent || durationElement?.getAttribute("aria-label") || "");
   const durationSeconds = parseDuration(durationText);
+  const cardText = cleanText(element.innerText || element.textContent || "");
 
   if (!link || !title) {
     return null;
@@ -262,7 +270,7 @@ function extractYouTubeCandidate(element: HTMLElement): Omit<VideoCandidate, "ke
     site: "youtube",
     url: new URL(link.getAttribute("href") || "", location.origin).toString(),
     title,
-    channel: cleanText(channelElement?.textContent || ""),
+    channel: cleanText([channelElement?.textContent || "", extractFollowStateText(cardText)].filter(Boolean).join(" ")),
     durationText,
     ...(durationSeconds !== undefined ? { durationSeconds } : {})
   };
@@ -284,6 +292,7 @@ function extractBilibiliCandidate(element: HTMLElement): Omit<VideoCandidate, "k
   );
   const durationText = cleanText(durationElement?.textContent || "");
   const durationSeconds = parseDuration(durationText);
+  const cardText = cleanText(element.innerText || element.textContent || "");
 
   if (!link || !title) {
     return null;
@@ -293,10 +302,15 @@ function extractBilibiliCandidate(element: HTMLElement): Omit<VideoCandidate, "k
     site: "bilibili",
     url: new URL(link.getAttribute("href") || "", location.origin).toString(),
     title,
-    channel: cleanText(channelElement?.textContent || ""),
+    channel: cleanText([channelElement?.textContent || "", extractFollowStateText(cardText)].filter(Boolean).join(" ")),
     durationText,
     ...(durationSeconds !== undefined ? { durationSeconds } : {})
   };
+}
+
+function extractFollowStateText(text: string): string {
+  const matches = text.match(/已关注|已订阅|Subscribed|Following/giu);
+  return matches ? [...new Set(matches)].join(" ") : "";
 }
 
 function applyRootClasses() {
@@ -313,15 +327,19 @@ function applyRootClasses() {
 
 function resetHiddenElements() {
   document.querySelectorAll<HTMLElement>("[data-cleanfeed-hidden]").forEach((element) => {
-    element.style.removeProperty("display");
-    if (element.dataset.cleanfeedPositioned === "true") {
-      element.style.removeProperty("position");
-      element.removeAttribute("data-cleanfeed-positioned");
-    }
-    element.removeAttribute("data-cleanfeed-hidden");
-    element.removeAttribute("data-cleanfeed-reason");
-    element.querySelector<HTMLElement>(".cleanfeed-badge")?.remove();
+    unhideElement(element);
   });
+}
+
+function unhideElement(element: HTMLElement) {
+  element.style.removeProperty("display");
+  if (element.dataset.cleanfeedPositioned === "true") {
+    element.style.removeProperty("position");
+    element.removeAttribute("data-cleanfeed-positioned");
+  }
+  element.removeAttribute("data-cleanfeed-hidden");
+  element.removeAttribute("data-cleanfeed-reason");
+  element.querySelector<HTMLElement>(".cleanfeed-badge")?.remove();
 }
 
 function resetAiReviewState() {

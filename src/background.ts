@@ -36,6 +36,22 @@ const reviewOutputSchema = z.object({
 });
 
 const generatedConfigSchema = z.object({
+  allowRules: z
+    .array(
+      z.object({
+        explanation: z.string().min(1).max(240),
+        regex: z.string().min(1).max(500)
+      })
+    )
+    .optional(),
+  blockRules: z
+    .array(
+      z.object({
+        explanation: z.string().min(1).max(240),
+        regex: z.string().min(1).max(500)
+      })
+    )
+    .optional(),
   rules: z
     .array(
       z.object({
@@ -43,6 +59,7 @@ const generatedConfigSchema = z.object({
         regex: z.string().min(1).max(500)
       })
     )
+    .optional()
 });
 
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -174,8 +191,11 @@ async function generateConfig(brief: string) {
     "User preference:",
     safeBrief,
     "",
-    "Return a JSON object: {\"rules\":[{\"explanation\":\"...\",\"regex\":\"...\"}]}",
+    "Return a JSON object: {\"allowRules\":[{\"explanation\":\"...\",\"regex\":\"...\"}],\"blockRules\":[{\"explanation\":\"...\",\"regex\":\"...\"}]}",
     "The regex runs against text extracted from each video card.",
+    "Allow rules are whitelist rules and always win over block rules and LLM review.",
+    "Always include an allow rule for followed or subscribed creators using words like 已关注, 已订阅, Subscribed, Following.",
+    "Block rules are blacklist rules that blur matching cards.",
     "Available metadata markers include:",
     "§SITE=youtube or §SITE=bilibili",
     "§TITLE=<video title>",
@@ -189,7 +209,7 @@ async function generateConfig(brief: string) {
     "For strictly longer than a threshold, use §DURATION_GT_5_MIN, §DURATION_GT_10_MIN, §DURATION_GT_20_MIN, §DURATION_GT_30_MIN, §DURATION_GT_60_MIN.",
     "§TEXT=<title channel duration>",
     "Do not add broad rules that would hide high-quality educational content.",
-    "Keep rules to 16 items or fewer. Use plain regex text without leading/trailing slashes."
+    "Keep allow rules to 4 items or fewer and block rules to 16 items or fewer. Use plain regex text without leading/trailing slashes."
   ].join("\n");
   const startedAt = Date.now();
   let output: z.infer<typeof generatedConfigSchema>;
@@ -217,18 +237,33 @@ async function generateConfig(brief: string) {
   }
 
   const timestamp = Date.now();
-  const generatedRules = output.rules.slice(0, 16).map<CleanFeedRule>((rule, index) => {
-    const id = `ai-${timestamp}-${index}`;
-
-    return {
-      id,
-      type: "regex",
+  const allowOutputRules = output.allowRules?.length
+    ? output.allowRules
+    : [
+        {
+          explanation: "已关注或已订阅作者内容直接放行",
+          regex: "(已关注|已订阅|Subscribed|Following)"
+        }
+      ];
+  const blockOutputRules = output.blockRules?.length ? output.blockRules : output.rules || [];
+  const generatedRules: CleanFeedRule[] = [
+    ...allowOutputRules.slice(0, 4).map<CleanFeedRule>((rule, index) => ({
+      id: `ai-allow-${timestamp}-${index}`,
+      type: "allow_regex",
       enabled: true,
       explanation: rule.explanation,
       pattern: rule.regex,
       source: "ai"
-    };
-  });
+    })),
+    ...blockOutputRules.slice(0, 16).map<CleanFeedRule>((rule, index) => ({
+      id: `ai-block-${timestamp}-${index}`,
+      type: "block_regex",
+      enabled: true,
+      explanation: rule.explanation,
+      pattern: rule.regex,
+      source: "ai"
+    }))
+  ];
 
   const nextSettings: CleanFeedSettings = {
     ...settings,

@@ -7,6 +7,18 @@ export type RuleMatch = {
   reason: string;
 };
 
+export type RuleDecision =
+  | {
+      action: "allow";
+      ruleId: string;
+      reason: string;
+    }
+  | {
+      action: "block";
+      ruleId: string;
+      reason: string;
+    };
+
 export function parseDuration(value: string | undefined | null): number | undefined {
   const text = String(value || "").trim();
   if (!text) {
@@ -44,16 +56,30 @@ export function parseDuration(value: string | undefined | null): number | undefi
 export function applyProgrammaticRules(
   candidate: VideoCandidate,
   rules: CleanFeedRule[]
-): RuleMatch | null {
+): RuleDecision | null {
   const ruleText = buildVideoRuleText(candidate);
+  const enabledRules = rules.filter((rule) => rule.enabled);
 
-  for (const rule of rules) {
-    if (!rule.enabled) {
+  for (const rule of enabledRules) {
+    if (!isAllowRule(rule)) {
       continue;
     }
-
     if (matchesRegexRule(ruleText, rule.pattern)) {
       return {
+        action: "allow",
+        ruleId: rule.id,
+        reason: rule.explanation || `Regex: ${rule.pattern}`
+      };
+    }
+  }
+
+  for (const rule of enabledRules) {
+    if (isAllowRule(rule)) {
+      continue;
+    }
+    if (matchesRegexRule(ruleText, rule.pattern)) {
+      return {
+        action: "block",
         ruleId: rule.id,
         reason: rule.explanation || `Regex: ${rule.pattern}`
       };
@@ -61,6 +87,10 @@ export function applyProgrammaticRules(
   }
 
   return null;
+}
+
+export function isAllowRule(rule: CleanFeedRule): boolean {
+  return rule.type === "allow_regex";
 }
 
 export function activeRuleCount(rules: CleanFeedRule[]): number {

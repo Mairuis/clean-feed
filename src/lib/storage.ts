@@ -150,8 +150,9 @@ function normalizeStoredRules(rules: unknown[]): CleanFeedSettings["rules"] {
       const id = String(item.id || `rule-${index}`);
       const enabled = item.enabled !== false;
       const source = item.source === "default" ? "default" : "ai";
+      const type = item.type === "allow_regex" ? "allow_regex" : item.type === "block_regex" ? "block_regex" : "regex";
 
-      if (item.type === "regex") {
+      if (item.type === "regex" || item.type === "allow_regex" || item.type === "block_regex") {
         const pattern = String(item.pattern || "").trim();
         if (!pattern) {
           return null;
@@ -159,7 +160,7 @@ function normalizeStoredRules(rules: unknown[]): CleanFeedSettings["rules"] {
 
         return {
           id,
-          type: "regex" as const,
+          type,
           enabled,
           explanation: String(item.explanation || "正则规则"),
           pattern,
@@ -175,7 +176,7 @@ function normalizeStoredRules(rules: unknown[]): CleanFeedSettings["rules"] {
 
         return {
           id,
-          type: "regex" as const,
+          type: "block_regex" as const,
           enabled,
           explanation: String(item.label || `屏蔽包含「${value}」的内容`),
           pattern: value
@@ -193,7 +194,7 @@ function normalizeStoredRules(rules: unknown[]): CleanFeedSettings["rules"] {
 
         return {
           id,
-          type: "regex" as const,
+          type: "block_regex" as const,
           enabled,
           explanation: String(item.label || `屏蔽短于 ${threshold || 300} 秒的视频`),
           pattern: marker,
@@ -227,7 +228,7 @@ function migrateLegacyKeywordRules(blockedKeywords: string | undefined): CleanFe
 
   return keywords.map((keyword, index) => ({
     id: `legacy-keyword-${index}`,
-    type: "regex" as const,
+    type: "block_regex" as const,
     enabled: true,
     explanation: `屏蔽包含「${keyword}」的内容`,
     pattern: escapeRegex(keyword),

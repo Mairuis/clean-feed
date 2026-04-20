@@ -435,6 +435,10 @@ body {
   letter-spacing: 0.08em;
 }
 
+.rule-kind.is-allow {
+  color: #6a8f79;
+}
+
 .rule-explanation {
   min-width: 0;
   flex: 1;

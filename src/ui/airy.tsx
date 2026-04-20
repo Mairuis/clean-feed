@@ -545,7 +545,7 @@ function PlanView({
         {rules.length > 0 ? (
           rules.map((rule) => (
             <div className="plan-row" key={rule.id}>
-              <span className="plan-icon">R</span>
+              <span className="plan-icon">{rule.type === "allow_regex" ? "A" : "B"}</span>
               <span className="plan-text">{rule.explanation}</span>
               <code>{rule.pattern}</code>
             </div>
@@ -631,7 +631,8 @@ function ReviewSection({
           onChange={(event) => onPreferenceChange(event.currentTarget.value)}
         />
         <div className="strategy-grid">
-          <VerdictRow action="模糊" color="#8aa8c8" label="命中正则" tip="卡片会被模糊，鼠标悬停可查看" />
+          <VerdictRow action="放行" color="#7ba192" label="白名单" tip="白名单正则优先级最高，命中后不再进入黑名单和 LLM" />
+          <VerdictRow action="模糊" color="#8aa8c8" label="黑名单" tip="卡片会被模糊，鼠标悬停可查看" />
           <VerdictRow action="保留" color="#a8b8ce" label="不确定" tip="默认保留，避免误杀" />
           <VerdictRow action="反馈" color="#7ba192" label="低质项" tip="如果开启平台反馈，会尝试点击不感兴趣或点踩" />
         </div>
@@ -652,7 +653,9 @@ function RulesSection({ rules }: { rules: CleanFeedRule[] }) {
         {rules.length > 0 ? (
           rules.map((rule) => (
             <div className="rule-row" key={rule.id}>
-              <span className="rule-kind">REGEX</span>
+              <span className={`rule-kind ${rule.type === "allow_regex" ? "is-allow" : ""}`}>
+                {rule.type === "allow_regex" ? "ALLOW" : "BLOCK"}
+              </span>
               <span className="rule-explanation">{rule.explanation}</span>
               <code className="rule-pattern">{rule.pattern}</code>
             </div>

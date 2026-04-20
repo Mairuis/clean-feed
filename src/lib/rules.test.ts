@@ -25,7 +25,7 @@ describe("applyProgrammaticRules", () => {
     const rules: CleanFeedRule[] = [
       {
         id: "regex",
-        type: "regex",
+        type: "block_regex",
         enabled: true,
         explanation: "Block TypeScript",
         pattern: "typescript",
@@ -34,13 +34,50 @@ describe("applyProgrammaticRules", () => {
     ];
 
     expect(applyProgrammaticRules(baseCandidate, rules)?.ruleId).toBe("regex");
+    expect(applyProgrammaticRules(baseCandidate, rules)?.action).toBe("block");
+  });
+
+  it("lets allow rules override block rules", () => {
+    const rules: CleanFeedRule[] = [
+      {
+        id: "block-clickbait",
+        type: "block_regex",
+        enabled: true,
+        explanation: "Block attention bait",
+        pattern: "clickbait",
+        source: "ai"
+      },
+      {
+        id: "allow-followed",
+        type: "allow_regex",
+        enabled: true,
+        explanation: "Allow followed creators",
+        pattern: "已关注|Subscribed",
+        source: "ai"
+      }
+    ];
+
+    expect(
+      applyProgrammaticRules(
+        {
+          ...baseCandidate,
+          title: "clickbait drama",
+          channel: "Engineering Notes 已关注"
+        },
+        rules
+      )
+    ).toEqual({
+      action: "allow",
+      reason: "Allow followed creators",
+      ruleId: "allow-followed"
+    });
   });
 
   it("does not apply disabled regex rules", () => {
     const rules: CleanFeedRule[] = [
       {
         id: "regex",
-        type: "regex",
+        type: "block_regex",
         enabled: false,
         explanation: "Block TypeScript",
         pattern: "typescript",
@@ -55,7 +92,7 @@ describe("applyProgrammaticRules", () => {
     const rules: CleanFeedRule[] = [
       {
         id: "duration-marker",
-        type: "regex",
+        type: "block_regex",
         enabled: true,
         explanation: "Block videos under 60 seconds",
         pattern: "§DURATION_LT_60",
@@ -71,7 +108,7 @@ describe("applyProgrammaticRules", () => {
     const rules: CleanFeedRule[] = [
       {
         id: "long-video-marker",
-        type: "regex",
+        type: "block_regex",
         enabled: true,
         explanation: "Match videos at least 20 minutes long",
         pattern: "§DURATION_GTE_20_MIN",
@@ -79,7 +116,7 @@ describe("applyProgrammaticRules", () => {
       },
       {
         id: "strict-long-video-marker",
-        type: "regex",
+        type: "block_regex",
         enabled: true,
         explanation: "Match videos longer than 30 minutes",
         pattern: "§DURATION_GT_30_MIN",
@@ -98,7 +135,7 @@ describe("applyProgrammaticRules", () => {
     const rules: CleanFeedRule[] = [
       {
         id: "bad-regex",
-        type: "regex",
+        type: "block_regex",
         enabled: true,
         explanation: "Broken",
         pattern: "[",

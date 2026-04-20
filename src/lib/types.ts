@@ -4,7 +4,7 @@ export type RuleSource = "default" | "ai";
 
 export type RegexRule = {
   id: string;
-  type: "regex";
+  type: "allow_regex" | "block_regex" | "regex";
   enabled: boolean;
   explanation: string;
   pattern: string;
