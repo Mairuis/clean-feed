@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { getOptionalPermissionOrigin } from "./lib/provider";
 import { activeRuleCount } from "./lib/rules";
-import { getAiStatus, getSecrets, getSettings, getUiState, saveSettings, saveUiState } from "./lib/storage";
-import type { AiStatus, CleanFeedSettings, CleanFeedUiState } from "./lib/types";
+import { getSettings, getUiState, saveSettings, saveUiState } from "./lib/storage";
+import type { AiAuditLogEntry, AiCostSummary, AiStatus, CleanFeedSettings, CleanFeedUiState } from "./lib/types";
 import { AirySettings, FirstRunFlow } from "./ui/airy";
 
 type AiConnectionDraft = {
@@ -13,6 +13,8 @@ type AiConnectionDraft = {
 };
 
 type RuntimeState = {
+  aiAuditLog: AiAuditLogEntry[];
+  aiCostSummary: AiCostSummary;
   aiStatus: AiStatus;
   hasAiKey: boolean;
   settings: CleanFeedSettings;
@@ -27,6 +29,8 @@ type RuntimeResponse<T> = {
 function OptionsApp() {
   const [settings, setSettings] = useState<CleanFeedSettings | null>(null);
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  const [aiCostSummary, setAiCostSummary] = useState<AiCostSummary | null>(null);
+  const [aiAuditLog, setAiAuditLog] = useState<AiAuditLogEntry[]>([]);
   const [uiState, setUiState] = useState<CleanFeedUiState | null>(null);
   const [hasAiKey, setHasAiKey] = useState(false);
   const [preference, setPreference] = useState("");
@@ -40,6 +44,8 @@ function OptionsApp() {
     (state: RuntimeState) => {
       setSettings(state.settings);
       setAiStatus(state.aiStatus);
+      setAiCostSummary(state.aiCostSummary);
+      setAiAuditLog(state.aiAuditLog);
       setHasAiKey(state.hasAiKey);
 
       if (!preferenceDirty) {
@@ -50,24 +56,15 @@ function OptionsApp() {
   );
 
   const loadState = useCallback(async () => {
-    const [nextSettings, nextAiStatus, nextUiState, secrets] = await Promise.all([
-      getSettings(),
-      getAiStatus(),
-      getUiState(),
-      getSecrets()
+    const [runtimeState, nextUiState] = await Promise.all([
+      sendRuntimeMessage<RuntimeState>({ type: "cleanfeed:get-state" }),
+      getUiState()
     ]);
 
-    setSettings(nextSettings);
-    setAiStatus(nextAiStatus);
+    applyRuntimeState(runtimeState);
     setUiState(nextUiState);
-    setHasAiKey(Boolean(secrets.aiApiKey));
-
-    if (!preferenceDirty) {
-      setPreference(nextSettings.ai.userBrief);
-    }
-
-    setStatus(nextSettings.ai.enabled ? nextAiStatus.message : "AI 未连接");
-  }, [preferenceDirty]);
+    setStatus(runtimeState.settings.ai.enabled ? runtimeState.aiStatus.message : "AI 未连接");
+  }, [applyRuntimeState]);
 
   useEffect(() => {
     void loadState();
@@ -190,7 +187,7 @@ function OptionsApp() {
     setStatus("设置已更新");
   };
 
-  if (!settings || !aiStatus || !uiState) {
+  if (!settings || !aiStatus || !aiCostSummary || !uiState) {
     return (
       <div className="settings-root noise">
         <div className="dawn-bg" />
@@ -220,6 +217,8 @@ function OptionsApp() {
   return (
     <AirySettings
       aiStatus={aiStatus}
+      aiAuditLog={aiAuditLog}
+      aiCostSummary={aiCostSummary}
       busy={busy}
       hasAiKey={hasAiKey}
       preference={preference}

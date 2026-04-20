@@ -1,8 +1,11 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import { estimateAiCost, normalizeAiUsage, summarizeAiAuditLog } from "./lib/cost";
 import { AI_CACHE_TTL_MS } from "./lib/defaults";
-import { createLanguageModel } from "./lib/provider";
+import { createLanguageModel, detectProvider } from "./lib/provider";
 import {
+  appendAiAuditLog,
+  getAiAuditLog,
   getAiCache,
   getAiStatus,
   getSecrets,
@@ -13,7 +16,7 @@ import {
   saveSettings,
   setAiStatus
 } from "./lib/storage";
-import type { AiReviewResult, CleanFeedRule, CleanFeedSettings, VideoCandidate } from "./lib/types";
+import type { AiAuditLogEntry, AiCallKind, AiReviewResult, CleanFeedRule, CleanFeedSettings, VideoCandidate } from "./lib/types";
 
 type RuntimeMessage =
   | { type: "cleanfeed:get-state" }
@@ -81,12 +84,14 @@ async function handleMessage(message: RuntimeMessage): Promise<unknown> {
 }
 
 async function getState() {
-  const [settings, secrets, aiStatus] = await Promise.all([getSettings(), getSecrets(), getAiStatus()]);
+  const [settings, secrets, aiStatus, aiAuditLog] = await Promise.all([getSettings(), getSecrets(), getAiStatus(), getAiAuditLog()]);
 
   return {
     settings,
     hasAiKey: Boolean(secrets.aiApiKey),
-    aiStatus
+    aiStatus,
+    aiCostSummary: summarizeAiAuditLog(aiAuditLog),
+    aiAuditLog: aiAuditLog.slice(0, 20)
   };
 }
 
@@ -115,21 +120,45 @@ async function testAiConnection() {
   await setAiStatus({ state: "working", message: "正在测试 AI 连接" });
 
   const model = createLanguageModel(settings.ai.apiBase, apiKey, settings.ai.model);
-  const result = await generateText({
-    model,
-    output: Output.object({
-      schema: z.object({
-        ok: z.boolean(),
-        message: z.string()
-      })
-    }),
-    prompt:
-      "Return JSON only. Do not wrap it in markdown or code fences. Shape: {\"ok\": true, \"message\": \"under 20 words\"}. Confirm the connection works."
-  });
+  const prompt =
+    "Return JSON only. Do not wrap it in markdown or code fences. Shape: {\"ok\": true, \"message\": \"under 20 words\"}. Confirm the connection works.";
+  const startedAt = Date.now();
 
-  const output = readStructuredOutput<{ ok: boolean; message: string }>(result);
-  await setAiStatus({ state: "ready", message: output.message || "AI 连接正常" });
-  return getState();
+  try {
+    const result = await generateText({
+      model,
+      output: Output.object({
+        schema: z.object({
+          ok: z.boolean(),
+          message: z.string()
+        })
+      }),
+      prompt
+    });
+
+    const output = readStructuredOutput<{ ok: boolean; message: string }>(result);
+    await recordAiCall({
+      input: { prompt },
+      kind: "test_connection",
+      output,
+      result,
+      settings,
+      startedAt,
+      status: "success"
+    });
+    await setAiStatus({ state: "ready", message: output.message || "AI 连接正常" });
+    return getState();
+  } catch (error) {
+    await recordAiCall({
+      error,
+      input: { prompt },
+      kind: "test_connection",
+      settings,
+      startedAt,
+      status: "error"
+    });
+    throw error;
+  }
 }
 
 async function generateConfig(brief: string) {
@@ -139,35 +168,54 @@ async function generateConfig(brief: string) {
   await setAiStatus({ state: "working", message: "正在生成过滤配置" });
 
   const model = createLanguageModel(settings.ai.apiBase, apiKey, settings.ai.model);
-  const result = await generateText({
-    model,
-    output: Output.object({ schema: generatedConfigSchema }),
-    system:
-      "You generate browser extension regex filtering rules. Each rule must contain only an explanation and a JavaScript-compatible regular expression. Return JSON only. Do not wrap it in markdown or code fences.",
-    prompt: [
-      "User preference:",
-      safeBrief,
-      "",
-      "Return a JSON object: {\"rules\":[{\"explanation\":\"...\",\"regex\":\"...\"}]}",
-      "The regex runs against text extracted from each video card.",
-      "Available metadata markers include:",
-      "§SITE=youtube or §SITE=bilibili",
-      "§TITLE=<video title>",
-      "§CHANNEL=<channel name>",
-      "§URL=<url>",
-      "§DURATION=<display duration>",
-      "§DURATION_SECONDS=<seconds>",
-      "§DURATION_MINUTES_FLOOR=<whole minutes>",
-      "§DURATION_LT_60, §DURATION_LT_90, §DURATION_LT_180, §DURATION_LT_300",
-      "For longer videos, use common minute markers such as §DURATION_GTE_5_MIN, §DURATION_GTE_10_MIN, §DURATION_GTE_20_MIN, §DURATION_GTE_30_MIN, §DURATION_GTE_60_MIN.",
-      "For strictly longer than a threshold, use §DURATION_GT_5_MIN, §DURATION_GT_10_MIN, §DURATION_GT_20_MIN, §DURATION_GT_30_MIN, §DURATION_GT_60_MIN.",
-      "§TEXT=<title channel duration>",
-      "Do not add broad rules that would hide high-quality educational content.",
-      "Keep rules to 16 items or fewer. Use plain regex text without leading/trailing slashes."
-    ].join("\n")
-  });
+  const system =
+    "You generate browser extension regex filtering rules. Each rule must contain only an explanation and a JavaScript-compatible regular expression. Return JSON only. Do not wrap it in markdown or code fences.";
+  const prompt = [
+    "User preference:",
+    safeBrief,
+    "",
+    "Return a JSON object: {\"rules\":[{\"explanation\":\"...\",\"regex\":\"...\"}]}",
+    "The regex runs against text extracted from each video card.",
+    "Available metadata markers include:",
+    "§SITE=youtube or §SITE=bilibili",
+    "§TITLE=<video title>",
+    "§CHANNEL=<channel name>",
+    "§URL=<url>",
+    "§DURATION=<display duration>",
+    "§DURATION_SECONDS=<seconds>",
+    "§DURATION_MINUTES_FLOOR=<whole minutes>",
+    "§DURATION_LT_60, §DURATION_LT_90, §DURATION_LT_180, §DURATION_LT_300",
+    "For longer videos, use common minute markers such as §DURATION_GTE_5_MIN, §DURATION_GTE_10_MIN, §DURATION_GTE_20_MIN, §DURATION_GTE_30_MIN, §DURATION_GTE_60_MIN.",
+    "For strictly longer than a threshold, use §DURATION_GT_5_MIN, §DURATION_GT_10_MIN, §DURATION_GT_20_MIN, §DURATION_GT_30_MIN, §DURATION_GT_60_MIN.",
+    "§TEXT=<title channel duration>",
+    "Do not add broad rules that would hide high-quality educational content.",
+    "Keep rules to 16 items or fewer. Use plain regex text without leading/trailing slashes."
+  ].join("\n");
+  const startedAt = Date.now();
+  let output: z.infer<typeof generatedConfigSchema>;
+  let result: unknown;
 
-  const output = readStructuredOutput<z.infer<typeof generatedConfigSchema>>(result);
+  try {
+    result = await generateText({
+      model,
+      output: Output.object({ schema: generatedConfigSchema }),
+      system,
+      prompt
+    });
+
+    output = readStructuredOutput<z.infer<typeof generatedConfigSchema>>(result);
+  } catch (error) {
+    await recordAiCall({
+      error,
+      input: { prompt, system },
+      kind: "generate_config",
+      settings,
+      startedAt,
+      status: "error"
+    });
+    throw error;
+  }
+
   const timestamp = Date.now();
   const generatedRules = output.rules.slice(0, 16).map<CleanFeedRule>((rule, index) => {
     const id = `ai-${timestamp}-${index}`;
@@ -195,6 +243,15 @@ async function generateConfig(brief: string) {
   };
 
   await saveSettings(nextSettings);
+  await recordAiCall({
+    input: { prompt, system },
+    kind: "generate_config",
+    output,
+    result,
+    settings,
+    startedAt,
+    status: "success"
+  });
   await setAiStatus({ state: "ready", message: "过滤配置已生成" });
   return getState();
 }
@@ -242,31 +299,51 @@ async function analyzeVideos(candidates: VideoCandidate[]) {
   await setAiStatus({ state: "working", message: `AI 正在判断 ${misses.length} 条内容` });
 
   const model = createLanguageModel(settings.ai.apiBase, secrets.aiApiKey, settings.ai.model);
-  const result = await generateText({
-    model,
-    output: Output.object({ schema: reviewOutputSchema }),
-    system: [
-      "You classify video feed items for a browser extension.",
-      settings.ai.reviewerInstruction,
-      "Use only the provided title, channel, site, and duration. Do not infer hidden context.",
-      "Return low_quality only when the item clearly wastes attention or is low-information. Return uncertain when unsure.",
-      "Return JSON only as a top-level object with an items array. Each item must include key, verdict, and reason.",
-      "Do not wrap the JSON in markdown or code fences."
-    ].join("\n"),
-    prompt: JSON.stringify(
-      misses.map((candidate) => ({
-        key: candidate.key,
-        site: candidate.site,
-        title: candidate.title,
-        channel: candidate.channel || "",
-        durationSeconds: candidate.durationSeconds ?? null
-      })),
-      null,
-      2
-    )
-  });
+  const system = [
+    "You classify video feed items for a browser extension.",
+    settings.ai.reviewerInstruction,
+    "Use only the provided title, channel, site, and duration. Do not infer hidden context.",
+    "Return low_quality only when the item clearly wastes attention or is low-information. Return uncertain when unsure.",
+    "Return JSON only as a top-level object with an items array. Each item must include key, verdict, and reason.",
+    "Do not wrap the JSON in markdown or code fences."
+  ].join("\n");
+  const prompt = JSON.stringify(
+    misses.map((candidate) => ({
+      key: candidate.key,
+      site: candidate.site,
+      title: candidate.title,
+      channel: candidate.channel || "",
+      durationSeconds: candidate.durationSeconds ?? null
+    })),
+    null,
+    2
+  );
+  const startedAt = Date.now();
+  let output: z.infer<typeof reviewOutputSchema>;
+  let result: unknown;
 
-  const output = readStructuredOutput<z.infer<typeof reviewOutputSchema>>(result);
+  try {
+    result = await generateText({
+      model,
+      output: Output.object({ schema: reviewOutputSchema }),
+      system,
+      prompt
+    });
+
+    output = readStructuredOutput<z.infer<typeof reviewOutputSchema>>(result);
+  } catch (error) {
+    await recordAiCall({
+      error,
+      input: { prompt, system },
+      itemCount: misses.length,
+      kind: "review_videos",
+      settings,
+      startedAt,
+      status: "error"
+    });
+    throw error;
+  }
+
   const freshResults = output.items.filter((item) => misses.some((candidate) => candidate.key === item.key));
 
   freshResults.forEach((item) => {
@@ -277,6 +354,16 @@ async function analyzeVideos(candidates: VideoCandidate[]) {
   });
 
   await saveAiCache(pruneCache(cache, now));
+  await recordAiCall({
+    input: { prompt, system },
+    itemCount: misses.length,
+    kind: "review_videos",
+    output: freshResults,
+    result,
+    settings,
+    startedAt,
+    status: "success"
+  });
   await setAiStatus({ state: "ready", message: `AI 已完成 ${freshResults.length} 条判断` });
 
   return {
@@ -330,4 +417,89 @@ function dedupeCandidates(candidates: VideoCandidate[]): VideoCandidate[] {
 
 function pruneCache(cache: Record<string, AiReviewResult & { expiresAt: number }>, now: number) {
   return Object.fromEntries(Object.entries(cache).filter(([, entry]) => entry.expiresAt > now));
+}
+
+async function recordAiCall({
+  error,
+  input,
+  itemCount,
+  kind,
+  output,
+  result,
+  settings,
+  startedAt,
+  status
+}: {
+  error?: unknown;
+  input: unknown;
+  itemCount?: number;
+  kind: AiCallKind;
+  output?: unknown;
+  result?: unknown;
+  settings: CleanFeedSettings;
+  startedAt: number;
+  status: AiAuditLogEntry["status"];
+}) {
+  const usage = normalizeAiUsage(readResultUsage(result) as Parameters<typeof normalizeAiUsage>[0]);
+
+  await appendAiAuditLog({
+    id: createAuditId(),
+    apiBase: settings.ai.apiBase,
+    cost: estimateAiCost(settings.ai.model, usage),
+    createdAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAt,
+    ...(error ? { error: error instanceof Error ? error.message : String(error) } : {}),
+    ...(itemCount !== undefined ? { itemCount } : {}),
+    input: sanitizeAuditValue(input),
+    kind,
+    model: settings.ai.model,
+    ...(output !== undefined ? { output: sanitizeAuditValue(output) } : {}),
+    provider: detectProvider(settings.ai.apiBase),
+    status,
+    usage
+  });
+}
+
+function readResultUsage(result: unknown) {
+  const maybeResult = result as { totalUsage?: unknown; usage?: unknown } | undefined;
+  return maybeResult?.totalUsage || maybeResult?.usage;
+}
+
+function sanitizeAuditValue(value: unknown, depth = 0): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return value.length > 8000 ? `${value.slice(0, 8000)}...` : value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  if (depth >= 4) {
+    return "[Max depth]";
+  }
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 30).map((item) => sanitizeAuditValue(item, depth + 1));
+  }
+
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .slice(0, 80)
+        .map(([key, item]) => [
+          key,
+          /api[-_ ]?key|authorization|secret|token/i.test(key) ? "[redacted]" : sanitizeAuditValue(item, depth + 1)
+        ])
+    );
+  }
+
+  return String(value);
+}
+
+function createAuditId(): string {
+  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

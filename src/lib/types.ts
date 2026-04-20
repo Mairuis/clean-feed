@@ -57,6 +57,65 @@ export type AiStatus = {
   updatedAt: string;
 };
 
+export type AiCallKind = "test_connection" | "generate_config" | "review_videos";
+
+export type AiTokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  reasoningTokens: number;
+  cachedInputTokens: number;
+  cacheWriteTokens: number;
+};
+
+export type AiCostBreakdown = {
+  currency: "USD";
+  inputUsd: number | null;
+  outputUsd: number | null;
+  totalUsd: number | null;
+  inputUsdPerMillion: number | null;
+  outputUsdPerMillion: number | null;
+  pricingSource: string;
+};
+
+export type AiAuditLogEntry = {
+  id: string;
+  createdAt: string;
+  kind: AiCallKind;
+  status: "success" | "error";
+  provider: string;
+  apiBase: string;
+  model: string;
+  durationMs: number;
+  itemCount?: number;
+  input: unknown;
+  output?: unknown;
+  error?: string;
+  usage: AiTokenUsage;
+  cost: AiCostBreakdown;
+};
+
+export type AiCostSummary = {
+  calls: number;
+  successCalls: number;
+  errorCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  pricedCalls: number;
+  unpricedCalls: number;
+  lastCall?: {
+    createdAt: string;
+    kind: AiCallKind;
+    status: "success" | "error";
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+    totalUsd: number | null;
+  };
+};
+
 export type VideoCandidate = {
   key: string;
   site: SiteId;

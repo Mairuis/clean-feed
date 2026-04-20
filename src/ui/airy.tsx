@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import type { AiStatus, CleanFeedRule, CleanFeedSettings } from "../lib/types";
+import type { AiAuditLogEntry, AiCostSummary, AiStatus, CleanFeedRule, CleanFeedSettings } from "../lib/types";
 
 type IconProps = {
   color?: string;
@@ -48,6 +48,8 @@ type AiryPopupProps = {
 };
 
 type AirySettingsProps = {
+  aiAuditLog: AiAuditLogEntry[];
+  aiCostSummary: AiCostSummary;
   aiStatus: AiStatus;
   busy: boolean;
   hasAiKey: boolean;
@@ -311,6 +313,8 @@ export function AiryPopup({
 }
 
 export function AirySettings({
+  aiAuditLog,
+  aiCostSummary,
   aiStatus,
   busy,
   hasAiKey,
@@ -364,7 +368,13 @@ export function AirySettings({
 
         <main className="settings-detail scroll">
           {section === "ai" ? (
-            <AISection aiStatus={aiStatus} settings={settings} onEdit={() => setDialogOpen(true)} />
+            <AISection
+              aiAuditLog={aiAuditLog}
+              aiCostSummary={aiCostSummary}
+              aiStatus={aiStatus}
+              settings={settings}
+              onEdit={() => setDialogOpen(true)}
+            />
           ) : null}
           {section === "review" ? (
             <ReviewSection busy={busy} preference={preference} onGenerateConfig={onGenerateConfig} onPreferenceChange={onPreferenceChange} />
@@ -373,7 +383,7 @@ export function AirySettings({
           {section === "scope" ? (
             <ScopeSection settings={settings} onToggleFeedback={onToggleFeedback} onToggleShorts={onToggleShorts} />
           ) : null}
-          {section === "history" ? <HistorySection /> : null}
+          {section === "history" ? <HistorySection aiAuditLog={aiAuditLog} /> : null}
           {section === "export" ? <ExportSection /> : null}
           <p className="settings-status" role="status">
             {status}
@@ -554,10 +564,14 @@ function PlanView({
 }
 
 function AISection({
+  aiAuditLog,
+  aiCostSummary,
   aiStatus,
   settings,
   onEdit
 }: {
+  aiAuditLog: AiAuditLogEntry[];
+  aiCostSummary: AiCostSummary;
   aiStatus: AiStatus;
   settings: CleanFeedSettings;
   onEdit: () => void;
@@ -583,9 +597,11 @@ function AISection({
         </div>
         <div className="ai-metrics">
           <Metric label="AI 状态" value={settings.ai.enabled ? aiStatus.state.toUpperCase() : "OFF"} />
-          <Metric label="模型" value={formatShortModel(settings.ai.model)} />
-          <Metric label="Key" value="Local" />
+          <Metric label="成本" value={formatUsd(aiCostSummary.estimatedCostUsd)} />
+          <Metric label="入参" value={formatTokenCount(aiCostSummary.inputTokens)} />
+          <Metric label="出参" value={formatTokenCount(aiCostSummary.outputTokens)} />
         </div>
+        <AuditLogList compact entries={aiAuditLog.slice(0, 4)} />
       </div>
     </>
   );
@@ -683,11 +699,11 @@ function ScopeSection({
   );
 }
 
-function HistorySection() {
+function HistorySection({ aiAuditLog }: { aiAuditLog: AiAuditLogEntry[] }) {
   return (
     <>
-      <SectionHeader title="历史 / 日志" sub="v1 先不记录历史；过滤动作只在当前页面即时执行。" />
-      <StateCard kind="empty" />
+      <SectionHeader title="审计日志" sub="模型调用记录保存在本地，包含入参、出参、token 和估算成本。" />
+      <AuditLogList entries={aiAuditLog} />
     </>
   );
 }
@@ -1024,6 +1040,46 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function AuditLogList({ compact = false, entries }: { compact?: boolean; entries: AiAuditLogEntry[] }) {
+  if (entries.length === 0) {
+    return (
+      <div className={`audit-empty${compact ? " is-compact" : ""}`}>
+        <IconSpark size={14} />
+        <span>暂无调用</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`audit-list${compact ? " is-compact" : ""}`}>
+      {entries.map((entry) => (
+        <details className="audit-entry" key={entry.id}>
+          <summary>
+            <span className={`audit-kind is-${entry.status}`}>{formatAuditKind(entry.kind)}</span>
+            <span className="audit-meta">
+              <strong>{formatAuditTime(entry.createdAt)}</strong>
+              <em>
+                IN {formatTokenCount(entry.usage.inputTokens)} / OUT {formatTokenCount(entry.usage.outputTokens)}
+              </em>
+            </span>
+            <span className="audit-cost">{formatNullableUsd(entry.cost.totalUsd)}</span>
+          </summary>
+          <div className="audit-payload">
+            <div>
+              <span>入参</span>
+              <pre>{formatAuditPayload(entry.input)}</pre>
+            </div>
+            <div>
+              <span>出参</span>
+              <pre>{formatAuditPayload(entry.output ?? entry.error ?? "")}</pre>
+            </div>
+          </div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
 function VerdictRow({ action, color, label, tip }: { action: string; color: string; label: string; tip: string }) {
   return (
     <div className="verdict-row">
@@ -1134,12 +1190,57 @@ function formatModelLabel(model: string) {
   return model;
 }
 
-function formatShortModel(model: string) {
-  if (model.includes("claude-haiku-4-5")) {
-    return "Haiku";
+function formatUsd(value: number) {
+  return `$${value.toLocaleString("en-US", {
+    maximumFractionDigits: value < 0.01 ? 6 : 4,
+    minimumFractionDigits: value > 0 && value < 0.01 ? 6 : 2
+  })}`;
+}
+
+function formatNullableUsd(value: number | null) {
+  return value === null ? "N/A" : formatUsd(value);
+}
+
+function formatTokenCount(value: number) {
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
   }
 
-  return model.split("/").pop()?.slice(0, 12) || "Model";
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}K`;
+  }
+
+  return String(value);
+}
+
+function formatAuditKind(kind: AiAuditLogEntry["kind"]) {
+  switch (kind) {
+    case "test_connection":
+      return "TEST";
+    case "generate_config":
+      return "RULE";
+    case "review_videos":
+      return "LLM";
+  }
+}
+
+function formatAuditTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "--";
+  }
+
+  return date.toLocaleString("zh-CN", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit"
+  });
+}
+
+function formatAuditPayload(value: unknown) {
+  const serialized = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  return serialized.length > 1600 ? `${serialized.slice(0, 1600)}...` : serialized;
 }
 
 function Svg({ children, color = "currentColor", size = 16 }: IconProps & { children: ReactNode }) {

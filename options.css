@@ -226,7 +226,7 @@ body {
 
 .ai-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-top: 14px;
 }
@@ -249,8 +249,119 @@ body {
   margin-top: 2px;
   color: var(--ink-900);
   font-family: var(--font-en);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 650;
+}
+
+.audit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-card .audit-list,
+.ai-card .audit-empty {
+  margin-top: 12px;
+}
+
+.audit-entry {
+  border: 1px solid rgba(255,255,255,0.55);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.32);
+}
+
+.audit-entry summary {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.audit-entry summary::-webkit-details-marker {
+  display: none;
+}
+
+.audit-kind {
+  color: #6f7d92;
+  font-family: var(--font-en);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.audit-kind.is-error {
+  color: #a06060;
+}
+
+.audit-meta {
+  min-width: 0;
+}
+
+.audit-meta strong,
+.audit-meta em,
+.audit-cost {
+  display: block;
+  overflow: hidden;
+  font-family: var(--font-en);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-meta strong {
+  color: var(--ink-800);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.audit-meta em {
+  margin-top: 2px;
+  color: var(--ink-500);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.audit-cost {
+  color: #6a8f79;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.audit-payload {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.audit-payload span {
+  color: var(--ink-500);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.audit-payload pre {
+  max-height: 180px;
+  margin: 4px 0 0;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 7px;
+  background: rgba(255,255,255,0.42);
+  color: var(--ink-700);
+  font: 10px/1.45 var(--font-en);
+  white-space: pre-wrap;
+}
+
+.audit-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.32);
+  color: var(--ink-500);
+  font-size: 12px;
 }
 
 .composer-card {
@@ -470,6 +581,11 @@ body {
   .nav-reset,
   .version {
     display: none;
+  }
+
+  .ai-metrics,
+  .audit-payload {
+    grid-template-columns: 1fr;
   }
 
   .settings-detail {
